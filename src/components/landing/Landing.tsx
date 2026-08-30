@@ -12,6 +12,7 @@ export function Landing() {
         />
         <div className="land-hero-shade" />
         <div className="land-hero-copy">
+          <img src="/art/logo.jpg" alt="Gol a Gol" className="brand-logo" />
           <p className="land-kicker">Dois jogadores · um celular</p>
           <h1 className="land-title">Gol a Gol</h1>
           <p className="land-lead">

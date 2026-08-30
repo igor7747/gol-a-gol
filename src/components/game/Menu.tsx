@@ -80,6 +80,7 @@ export function Menu({
         <div className="menu-hero">
           <img src="/art/hero.jpg" alt="" />
         </div>
+        <img src="/art/logo.jpg" alt="" className="brand-logo brand-logo-sm" />
         <p className="menu-kicker">Dois jogadores · um celular</p>
         <h1 className="menu-title">Gol a Gol</h1>
 

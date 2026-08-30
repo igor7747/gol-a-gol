@@ -386,7 +386,7 @@ function Over({
 function Loader() {
   return (
     <div className="loader" role="status" aria-live="polite">
-      <span className="loader-ball" />
+      <img src="/art/logo.jpg" alt="" className="brand-logo loader-logo" />
       <p className="loader-kicker">Gol a Gol</p>
       <h2 className="loader-title">Montando o campo</h2>
       <p className="loader-note">Gramado, gols e torcida</p>
