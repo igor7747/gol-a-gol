@@ -1,5 +1,14 @@
 import { create } from "zustand";
-import type { Axis, GoalSize, Mode, Phase } from "./types";
+import type {
+  Axis,
+  BallSkin,
+  BotLevel,
+  GloveSkin,
+  GoalSize,
+  Mode,
+  Phase,
+  PitchTheme,
+} from "./types";
 
 export interface GameUi {
   phase: Phase;
@@ -15,6 +24,16 @@ export interface GameUi {
   muted: boolean;
   shake: boolean;
   fingers: [number, number];
+  booted: boolean;
+  botLevel: BotLevel;
+  timerOn: boolean;
+  clock: number;
+  sudden: boolean;
+  theme: PitchTheme;
+  ballSkin: BallSkin;
+  gloveSkin: GloveSkin;
+  tutorialDone: boolean;
+  scorePulse: number;
 }
 
 export interface GameUiApi extends GameUi {
@@ -35,6 +54,16 @@ export const useGameUi = create<GameUiApi>((set) => ({
   muted: false,
   shake: true,
   fingers: [0, 0],
+  booted: false,
+  botLevel: "normal",
+  timerOn: false,
+  clock: 120,
+  sudden: false,
+  theme: "night",
+  ballSkin: "classic",
+  gloveSkin: "ring",
+  tutorialDone: false,
+  scorePulse: 0,
   patch: (partial) => set(partial),
 }));
 

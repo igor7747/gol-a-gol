@@ -3,13 +3,40 @@ import {
   GELO,
   PAPER,
   type Ball,
+  type BallSkin,
   type Field,
   type Finger,
+  type GloveSkin,
   type Particle,
+  type PitchTheme,
 } from "./types";
 
-const PITCH_A = "#0c2c22";
-const PITCH_B = "#0a261e";
+const THEMES: Record<
+  PitchTheme,
+  { a: string; b: string; bg: string; glow0: string; glow1: string }
+> = {
+  night: {
+    a: "#0c2c22",
+    b: "#0a261e",
+    bg: "#06110d",
+    glow0: "#123c2c",
+    glow1: "#06110d",
+  },
+  grass: {
+    a: "#2a8f4a",
+    b: "#1f7a3c",
+    bg: "#0c3d20",
+    glow0: "#3aa558",
+    glow1: "#0c3d20",
+  },
+  rain: {
+    a: "#14352c",
+    b: "#102e27",
+    bg: "#071410",
+    glow0: "#1a4036",
+    glow1: "#071410",
+  },
+};
 const LINE = "rgba(236, 240, 232, 0.78)";
 const NET = "rgba(232, 236, 226, 0.28)";
 
@@ -20,6 +47,10 @@ export interface DrawExtras {
   flash: number;
   score: [number, number];
   target: number;
+  theme: PitchTheme;
+  ballSkin: BallSkin;
+  gloveSkin: GloveSkin;
+  scorePulse: number;
 }
 
 export class Renderer {
@@ -49,18 +80,19 @@ export class Renderer {
     ctx.scale(extras.zoom, extras.zoom);
     ctx.translate(-w / 2, -h / 2);
 
-    this.ensurePitch(field);
+    this.ensurePitch(field, extras.theme);
     if (this.pitch) ctx.drawImage(this.pitch, 0, 0, w, h);
 
     this.drawPads(ctx, extras.pads, time);
     this.drawGoals(ctx, field);
-    this.drawScoreboard(ctx, field, extras.score);
+    this.drawScoreboard(ctx, field, extras.score, extras.scorePulse);
+    if (extras.theme === "rain") this.drawRain(ctx, field, time);
     this.drawParticles(ctx, particles, "dust");
     this.drawParticles(ctx, particles, "boost");
     this.drawTrail(ctx, extras.trail, ball);
     this.drawBallShadow(ctx, ball, alpha);
-    this.drawFingers(ctx, fingers, time);
-    this.drawBall(ctx, ball, alpha);
+    this.drawFingers(ctx, fingers, time, extras.gloveSkin);
+    this.drawBall(ctx, ball, alpha, extras.ballSkin);
     this.drawParticles(ctx, particles, "spark");
     this.drawParticles(ctx, particles, "confetti");
 
@@ -77,21 +109,26 @@ export class Renderer {
     }
   }
 
-  private ensurePitch(field: Field) {
-    const key = `${Math.round(field.w)}x${Math.round(field.h)}x${Math.round(field.pw)}x${Math.round(field.ph)}x${Math.round(field.goalW)}`;
+  warm(field: Field, theme: PitchTheme) {
+    this.ensurePitch(field, theme);
+  }
+
+  private ensurePitch(field: Field, theme: PitchTheme) {
+    const key = `${Math.round(field.w)}x${Math.round(field.h)}x${Math.round(field.pw)}x${Math.round(field.ph)}x${Math.round(field.goalW)}x${theme}`;
     if (this.pitch && this.pitchKey === key) return;
     const c = document.createElement("canvas");
     c.width = Math.max(1, Math.round(field.w));
     c.height = Math.max(1, Math.round(field.h));
     const g = c.getContext("2d");
     if (!g) return;
-    this.drawStaticPitch(g, field);
+    this.drawStaticPitch(g, field, theme);
     this.pitch = c;
     this.pitchKey = key;
   }
 
-  private drawStaticPitch(ctx: CanvasRenderingContext2D, f: Field) {
-    ctx.fillStyle = "#06110d";
+  private drawStaticPitch(ctx: CanvasRenderingContext2D, f: Field, theme: PitchTheme) {
+    const pal = THEMES[theme];
+    ctx.fillStyle = pal.bg;
     ctx.fillRect(0, 0, f.w, f.h);
 
     this.drawStands(ctx, f);
@@ -104,8 +141,8 @@ export class Renderer {
       f.midY,
       Math.max(f.w, f.h) * 0.78,
     );
-    glow.addColorStop(0, "#123c2c");
-    glow.addColorStop(1, "#06110d");
+    glow.addColorStop(0, pal.glow0);
+    glow.addColorStop(1, pal.glow1);
     ctx.fillStyle = glow;
     ctx.fillRect(0, 0, f.w, f.h);
 
@@ -117,14 +154,14 @@ export class Renderer {
       const stripes = 18;
       const sw = f.pw / stripes;
       for (let i = 0; i < stripes; i++) {
-        ctx.fillStyle = i % 2 === 0 ? PITCH_A : PITCH_B;
+        ctx.fillStyle = i % 2 === 0 ? pal.a : pal.b;
         ctx.fillRect(f.x + i * sw, f.y, sw + 0.6, f.ph);
       }
     } else {
       const stripes = 18;
       const sh = f.ph / stripes;
       for (let i = 0; i < stripes; i++) {
-        ctx.fillStyle = i % 2 === 0 ? PITCH_A : PITCH_B;
+        ctx.fillStyle = i % 2 === 0 ? pal.a : pal.b;
         ctx.fillRect(f.x, f.y + i * sh, f.pw, sh + 0.6);
       }
     }
@@ -423,6 +460,7 @@ export class Renderer {
     ctx: CanvasRenderingContext2D,
     f: Field,
     score: [number, number],
+    pulse: number,
   ) {
     const r = Math.max(15, Math.min(21, Math.min(f.pw, f.ph) * 0.042));
     const gap = Math.max(6, r * 0.45);
@@ -435,10 +473,10 @@ export class Renderer {
       const topY = Math.max(r + 8, f.y - f.goalD * 0.52);
       const botY = Math.min(f.h - r - 8, f.y + f.ph + f.goalD * 0.52);
       // Top is rotated 180: swap sides so each player reads Brasa on their left.
-      this.paintBadge(ctx, left, topY, r, score[0], GELO, Math.PI);
-      this.paintBadge(ctx, right, topY, r, score[1], BRASA, Math.PI);
-      this.paintBadge(ctx, left, botY, r, score[1], BRASA, 0);
-      this.paintBadge(ctx, right, botY, r, score[0], GELO, 0);
+      this.paintBadge(ctx, left, topY, r, score[0], GELO, Math.PI, pulse);
+      this.paintBadge(ctx, right, topY, r, score[1], BRASA, Math.PI, pulse);
+      this.paintBadge(ctx, left, botY, r, score[1], BRASA, 0, pulse);
+      this.paintBadge(ctx, right, botY, r, score[0], GELO, 0, pulse);
       return;
     }
 
@@ -448,10 +486,10 @@ export class Renderer {
     const bot = Math.min(f.h - r - 8, gb + gap + r);
     const leftX = Math.max(r + 8, f.x - f.goalD * 0.52);
     const rightX = Math.min(f.w - r - 8, f.x + f.pw + f.goalD * 0.52);
-    this.paintBadge(ctx, leftX, top, r, score[0], GELO, -Math.PI / 2);
-    this.paintBadge(ctx, leftX, bot, r, score[1], BRASA, -Math.PI / 2);
-    this.paintBadge(ctx, rightX, top, r, score[1], BRASA, Math.PI / 2);
-    this.paintBadge(ctx, rightX, bot, r, score[0], GELO, Math.PI / 2);
+    this.paintBadge(ctx, leftX, top, r, score[0], GELO, -Math.PI / 2, pulse);
+    this.paintBadge(ctx, leftX, bot, r, score[1], BRASA, -Math.PI / 2, pulse);
+    this.paintBadge(ctx, rightX, top, r, score[1], BRASA, Math.PI / 2, pulse);
+    this.paintBadge(ctx, rightX, bot, r, score[0], GELO, Math.PI / 2, pulse);
   }
 
   private paintBadge(
@@ -462,10 +500,13 @@ export class Renderer {
     n: number,
     color: string,
     rot: number,
+    pulse = 0,
   ) {
     ctx.save();
     ctx.translate(x, y);
     ctx.rotate(rot);
+    const s = 1 + pulse * 0.28;
+    ctx.scale(s, s);
 
     ctx.beginPath();
     ctx.arc(0, 0, r, 0, Math.PI * 2);
@@ -513,6 +554,22 @@ export class Renderer {
     ctx.restore();
   }
 
+  private drawRain(ctx: CanvasRenderingContext2D, f: Field, time: number) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(210,225,230,0.22)";
+    ctx.lineWidth = 1.1;
+    for (let i = 0; i < 46; i++) {
+      const seed = i * 17.3;
+      const x = f.x + ((seed * 13 + time * 90) % Math.max(1, f.pw));
+      const y = f.y + ((seed * 29 + time * 420) % Math.max(1, f.ph));
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - 3.5, y + 13);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   private drawTrail(
     ctx: CanvasRenderingContext2D,
     trail: Array<{ x: number; y: number }>,
@@ -549,7 +606,12 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawBall(ctx: CanvasRenderingContext2D, ball: Ball, alpha: number) {
+  private drawBall(
+    ctx: CanvasRenderingContext2D,
+    ball: Ball,
+    alpha: number,
+    skin: BallSkin = "classic",
+  ) {
     const x = ball.px + (ball.x - ball.px) * alpha;
     const y = ball.py + (ball.y - ball.py) * alpha;
     const sp = Math.hypot(ball.vx, ball.vy);
@@ -563,9 +625,15 @@ export class Renderer {
     if (sp > 40) ctx.rotate(-ang);
     ctx.rotate(ball.rot);
 
-    if (sp > 1400) {
+    if (sp > 1400 || skin !== "classic") {
       const aura = ctx.createRadialGradient(0, 0, ball.r * 0.4, 0, 0, ball.r * 1.7);
-      aura.addColorStop(0, "rgba(255,210,160,0.28)");
+      const glow =
+        skin === "ice"
+          ? "rgba(126,224,214,0.35)"
+          : skin === "fire"
+            ? "rgba(255,140,90,0.38)"
+            : "rgba(255,210,160,0.28)";
+      aura.addColorStop(0, glow);
       aura.addColorStop(1, "rgba(255,210,160,0)");
       ctx.fillStyle = aura;
       ctx.beginPath();
@@ -575,12 +643,13 @@ export class Renderer {
 
     ctx.beginPath();
     ctx.arc(0, 0, ball.r, 0, Math.PI * 2);
-    ctx.fillStyle = "#f7f6f2";
+    ctx.fillStyle =
+      skin === "fire" ? "#f4a574" : skin === "ice" ? "#d8f7f3" : "#f7f6f2";
     ctx.fill();
     ctx.save();
     ctx.clip();
-    ctx.fillStyle = "#161616";
-    ctx.strokeStyle = "#161616";
+    ctx.fillStyle = skin === "fire" ? "#5a1c12" : skin === "ice" ? "#1a4a48" : "#161616";
+    ctx.strokeStyle = ctx.fillStyle;
     ctx.lineWidth = ball.r * 0.07;
     pentagon(ctx, 0, 0, ball.r * 0.3, -Math.PI / 2, true);
     for (let i = 0; i < 5; i++) {
@@ -619,7 +688,12 @@ export class Renderer {
     ctx.restore();
   }
 
-  private drawFingers(ctx: CanvasRenderingContext2D, fingers: Finger[], time: number) {
+  private drawFingers(
+    ctx: CanvasRenderingContext2D,
+    fingers: Finger[],
+    time: number,
+    glove: GloveSkin = "ring",
+  ) {
     const slots = new Map<number, number>();
     const born0 = fingers
       .filter((f) => f.side === 0)
@@ -700,34 +774,41 @@ export class Renderer {
       ctx.arc(0, 0, f.r * 0.92, 0, Math.PI * 2);
       ctx.stroke();
 
-      ctx.strokeStyle = withAlpha(PAPER, 0.28);
-      ctx.lineWidth = 1.2;
-      ctx.beginPath();
-      ctx.arc(0, 0, f.r * 0.72, 0, Math.PI * 2);
-      ctx.stroke();
-
-      const ticks = 8;
-      ctx.strokeStyle = withAlpha(PAPER, 0.45);
-      ctx.lineWidth = 1.4;
-      for (let i = 0; i < ticks; i++) {
-        const a = (i / ticks) * Math.PI * 2 + (f.side === 0 ? 0.2 : 0);
-        ctx.beginPath();
-        ctx.moveTo(Math.cos(a) * f.r * 0.78, Math.sin(a) * f.r * 0.78);
-        ctx.lineTo(Math.cos(a) * f.r * 0.9, Math.sin(a) * f.r * 0.9);
-        ctx.stroke();
+      if (glove === "stripe") {
+        ctx.fillStyle = withAlpha(PAPER, 0.22);
+        ctx.fillRect(-f.r * 0.92, -f.r * 0.16, f.r * 1.84, f.r * 0.32);
       }
 
-      if (f.side === 0) {
-        ctx.strokeStyle = withAlpha(PAPER, 0.35);
+      if (glove !== "solid") {
+        ctx.strokeStyle = withAlpha(PAPER, 0.28);
+        ctx.lineWidth = 1.2;
         ctx.beginPath();
-        ctx.moveTo(0, -f.r * 0.55);
-        ctx.lineTo(0, -f.r * 0.22);
-        ctx.moveTo(-f.r * 0.18, -f.r * 0.42);
-        ctx.lineTo(f.r * 0.18, -f.r * 0.42);
+        ctx.arc(0, 0, f.r * 0.72, 0, Math.PI * 2);
         ctx.stroke();
-      } else {
-        ctx.fillStyle = withAlpha(PAPER, 0.28);
-        chevron(ctx, 0, -f.r * 0.42, f.r * 0.18);
+
+        const ticks = glove === "ring" ? 8 : 4;
+        ctx.strokeStyle = withAlpha(PAPER, 0.45);
+        ctx.lineWidth = 1.4;
+        for (let i = 0; i < ticks; i++) {
+          const a = (i / ticks) * Math.PI * 2 + (f.side === 0 ? 0.2 : 0);
+          ctx.beginPath();
+          ctx.moveTo(Math.cos(a) * f.r * 0.78, Math.sin(a) * f.r * 0.78);
+          ctx.lineTo(Math.cos(a) * f.r * 0.9, Math.sin(a) * f.r * 0.9);
+          ctx.stroke();
+        }
+
+        if (f.side === 0) {
+          ctx.strokeStyle = withAlpha(PAPER, 0.35);
+          ctx.beginPath();
+          ctx.moveTo(0, -f.r * 0.55);
+          ctx.lineTo(0, -f.r * 0.22);
+          ctx.moveTo(-f.r * 0.18, -f.r * 0.42);
+          ctx.lineTo(f.r * 0.18, -f.r * 0.42);
+          ctx.stroke();
+        } else {
+          ctx.fillStyle = withAlpha(PAPER, 0.28);
+          chevron(ctx, 0, -f.r * 0.42, f.r * 0.18);
+        }
       }
 
       ctx.beginPath();

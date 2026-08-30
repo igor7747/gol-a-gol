@@ -2,12 +2,16 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
   ArrowLeft,
+  Clock,
+  CloudRain,
   Cpu,
   Goal,
   Hand,
+  Moon,
   Pause,
   Play,
   RotateCcw,
+  Sun,
   Users,
   Volume2,
   VolumeX,
@@ -16,7 +20,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Engine } from "@/game/engine";
 import { useGameUi } from "@/game/store";
-import type { Axis, GoalSize, Mode } from "@/game/types";
+import type {
+  Axis,
+  BallSkin,
+  BotLevel,
+  GloveSkin,
+  GoalSize,
+  Mode,
+  PitchTheme,
+} from "@/game/types";
 import { cn } from "@/lib/utils";
 
 export function GolAGol() {
@@ -24,6 +36,8 @@ export function GolAGol() {
   const engineRef = useRef<Engine | null>(null);
   const ui = useGameUi();
   const [setup, setSetup] = useState<Mode | null>(null);
+  const [showLoader, setShowLoader] = useState(true);
+  const [tutorial, setTutorial] = useState(false);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -37,11 +51,28 @@ export function GolAGol() {
     };
   }, []);
 
-  const eng = () => engineRef.current;
+  useEffect(() => {
+    if (!ui.booted) return;
+    const t = window.setTimeout(() => setShowLoader(false), 800);
+    return () => window.clearTimeout(t);
+  }, [ui.booted]);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setShowLoader(false), 4500);
+    return () => window.clearTimeout(t);
+  }, []);
 
   useEffect(() => {
     if (ui.phase !== "menu") setSetup(null);
   }, [ui.phase]);
+
+  useEffect(() => {
+    if (!showLoader && ui.phase === "menu" && !ui.tutorialDone) {
+      setTutorial(true);
+    }
+  }, [showLoader, ui.phase, ui.tutorialDone]);
+
+  const eng = () => engineRef.current;
 
   return (
     <div
@@ -54,7 +85,18 @@ export function GolAGol() {
         aria-label="Campo de gol a gol"
       />
 
-      {ui.phase === "menu" && setup === null && (
+      {showLoader && <Loader />}
+
+      {tutorial && !showLoader && (
+        <Tutorial
+          onDone={() => {
+            setTutorial(false);
+            eng()?.finishTutorial();
+          }}
+        />
+      )}
+
+      {ui.phase === "menu" && setup === null && !tutorial && !showLoader && (
         <Home
           muted={ui.muted}
           onVersus={() => setSetup("versus")}
@@ -63,13 +105,23 @@ export function GolAGol() {
         />
       )}
 
-      {ui.phase === "menu" && setup !== null && (
+      {ui.phase === "menu" && setup !== null && !showLoader && (
         <Setup
           mode={setup}
           target={ui.target}
           goalSize={ui.goalSize}
+          botLevel={ui.botLevel}
+          timerOn={ui.timerOn}
+          theme={ui.theme}
+          ballSkin={ui.ballSkin}
+          gloveSkin={ui.gloveSkin}
           onTarget={(n) => eng()?.setTarget(n)}
           onGoalSize={(s) => eng()?.setGoalSize(s)}
+          onBotLevel={(l) => eng()?.setBotLevel(l)}
+          onTimer={(on) => eng()?.setTimerOn(on)}
+          onTheme={(t) => eng()?.setTheme(t)}
+          onBall={(s) => eng()?.setBallSkin(s)}
+          onGlove={(s) => eng()?.setGloveSkin(s)}
           onPlay={() => eng()?.setMode(setup)}
           onBack={() => setSetup(null)}
         />
@@ -94,10 +146,19 @@ export function GolAGol() {
           axis={ui.axis}
           target={ui.target}
           paused={ui.phase === "paused"}
+          timerOn={ui.timerOn}
+          clock={ui.clock}
+          sudden={ui.sudden}
           onPause={() =>
             ui.phase === "paused" ? eng()?.resume() : eng()?.pause()
           }
         />
+      )}
+
+      {ui.phase === "replay" && (
+        <div className="overlay overlay-center pointer-none">
+          <p className="replay-tag">Replay</p>
+        </div>
       )}
 
       {ui.phase === "paused" && (
@@ -177,16 +238,36 @@ function Setup({
   mode,
   target,
   goalSize,
+  botLevel,
+  timerOn,
+  theme,
+  ballSkin,
+  gloveSkin,
   onTarget,
   onGoalSize,
+  onBotLevel,
+  onTimer,
+  onTheme,
+  onBall,
+  onGlove,
   onPlay,
   onBack,
 }: {
   mode: Mode;
   target: number;
   goalSize: GoalSize;
+  botLevel: BotLevel;
+  timerOn: boolean;
+  theme: PitchTheme;
+  ballSkin: BallSkin;
+  gloveSkin: GloveSkin;
   onTarget: (n: number) => void;
   onGoalSize: (s: GoalSize) => void;
+  onBotLevel: (l: BotLevel) => void;
+  onTimer: (on: boolean) => void;
+  onTheme: (t: PitchTheme) => void;
+  onBall: (s: BallSkin) => void;
+  onGlove: (s: GloveSkin) => void;
   onPlay: () => void;
   onBack: () => void;
 }) {
@@ -243,11 +324,128 @@ function Setup({
           </div>
         </div>
 
+        <div className="menu-row">
+          <span className="menu-label">
+            <Clock /> Relógio
+          </span>
+          <div className="chip-row">
+            <button
+              type="button"
+              className={cn("chip", !timerOn && "chip-on")}
+              onClick={() => onTimer(false)}
+            >
+              Só gols
+            </button>
+            <button
+              type="button"
+              className={cn("chip", timerOn && "chip-on")}
+              onClick={() => onTimer(true)}
+            >
+              2 minutos
+            </button>
+          </div>
+        </div>
+
+        {mode === "bot" && (
+          <div className="menu-row">
+            <span className="menu-label">Bot</span>
+            <div className="chip-row">
+              {(
+                [
+                  ["easy", "Fácil"],
+                  ["normal", "Normal"],
+                  ["hard", "Difícil"],
+                ] as const
+              ).map(([id, label]) => (
+                <button
+                  key={id}
+                  type="button"
+                  className={cn("chip", botLevel === id && "chip-on")}
+                  onClick={() => onBotLevel(id)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="setup-block">
+          <span className="menu-label">Campo</span>
+          <div className="chip-row">
+            <button
+              type="button"
+              className={cn("chip", theme === "night" && "chip-on")}
+              onClick={() => onTheme("night")}
+            >
+              <Moon /> Noite
+            </button>
+            <button
+              type="button"
+              className={cn("chip", theme === "grass" && "chip-on")}
+              onClick={() => onTheme("grass")}
+            >
+              <Sun /> Grama
+            </button>
+            <button
+              type="button"
+              className={cn("chip", theme === "rain" && "chip-on")}
+              onClick={() => onTheme("rain")}
+            >
+              <CloudRain /> Chuva
+            </button>
+          </div>
+        </div>
+
+        <div className="menu-row">
+          <span className="menu-label">Bola</span>
+          <div className="chip-row">
+            {(
+              [
+                ["classic", "Clássica"],
+                ["fire", "Fogo"],
+                ["ice", "Gelo"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={cn("chip", ballSkin === id && "chip-on")}
+                onClick={() => onBall(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="menu-row">
+          <span className="menu-label">Luvas</span>
+          <div className="chip-row">
+            {(
+              [
+                ["ring", "Anel"],
+                ["stripe", "Faixa"],
+                ["solid", "Cheia"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                className={cn("chip", gloveSkin === id && "chip-on")}
+                onClick={() => onGlove(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="how">
           <Hand className="how-icon" strokeWidth={1.75} />
           <p>
             Toque na sua metade — até 3 dedos. Arraste rápido para chutar.
-            Os círculos no campo dão um boost, no estilo da arena.
+            Os círculos no campo dão um boost.
           </p>
         </div>
 
@@ -325,13 +523,21 @@ function Hud({
   axis,
   target,
   paused,
+  timerOn,
+  clock,
+  sudden,
   onPause,
 }: {
   axis: Axis;
   target: number;
   paused: boolean;
+  timerOn: boolean;
+  clock: number;
+  sudden: boolean;
   onPause: () => void;
 }) {
+  const mm = Math.floor(Math.max(0, clock) / 60);
+  const ss = String(Math.max(0, clock) % 60).padStart(2, "0");
   return (
     <div className={cn("hud pointer-none", `layout-${axis}`)}>
       <button
@@ -341,7 +547,9 @@ function Hud({
         aria-label={paused ? "Continuar" : "Pausar"}
       >
         {paused ? <Play /> : <Pause />}
-        <span>até {target}</span>
+        <span>
+          {sudden ? "Morte súbita" : timerOn ? `${mm}:${ss}` : `até ${target}`}
+        </span>
       </button>
     </div>
   );
@@ -409,14 +617,18 @@ function Over({
   axis: Axis;
   winner: 0 | 1;
   score: [number, number];
-  mode: "versus" | "bot";
+  mode: Mode;
   onRematch: () => void;
   onMenu: () => void;
 }) {
   const name = winner === 0 ? "Gelo" : "Brasa";
   const youWin = mode === "bot" && winner === 0;
   const youLose = mode === "bot" && winner === 1;
-  const headline = youWin ? "Você venceu" : youLose ? "O bot venceu" : `${name} vence`;
+  const headline = youWin
+    ? "Você venceu"
+    : youLose
+      ? "O bot venceu"
+      : `${name} vence`;
   return (
     <div className={cn("overlay overlay-split", `layout-${axis}`)}>
       <div className="over-side over-brasa">
@@ -444,6 +656,57 @@ function Over({
               Menu
             </Button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Loader() {
+  return (
+    <div className="loader" role="status" aria-live="polite">
+      <span className="loader-ball" />
+      <p className="loader-kicker">Gol a Gol</p>
+      <h2 className="loader-title">Montando o campo</h2>
+      <p className="loader-note">Gramado, gols e torcida</p>
+    </div>
+  );
+}
+
+function Tutorial({ onDone }: { onDone: () => void }) {
+  const steps = [
+    {
+      title: "Deite o celular",
+      body: "Na mesa, entre os dois. Retrato funciona melhor.",
+    },
+    {
+      title: "Cada um num gol",
+      body: "Brasa em cima, Gelo embaixo. Vocês jogam um contra o outro.",
+    },
+    {
+      title: "Até 3 dedos",
+      body: "O dedo defende e chuta. Arraste rápido. Os círculos dão boost.",
+    },
+  ];
+  const [i, setI] = useState(0);
+  useEffect(() => {
+    const t = window.setTimeout(() => {
+      if (i >= steps.length - 1) onDone();
+      else setI((n) => n + 1);
+    }, 3200);
+    return () => window.clearTimeout(t);
+  }, [i, onDone, steps.length]);
+  const step = steps[i];
+  return (
+    <div className="overlay overlay-menu">
+      <div className="menu-inner">
+        <p className="menu-kicker">Como jogar · {i + 1}/3</p>
+        <h2 className="setup-title">{step.title}</h2>
+        <p className="menu-lead">{step.body}</p>
+        <div className="menu-actions">
+          <Button size="xl" onClick={onDone}>
+            {i === steps.length - 1 ? "Entendi" : "Pular"}
+          </Button>
         </div>
       </div>
     </div>

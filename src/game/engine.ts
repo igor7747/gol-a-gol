@@ -9,12 +9,16 @@ import {
   makeField,
   saveSettings,
   type Ball,
+  type BallSkin,
+  type BotLevel,
   type Field,
   type Finger,
+  type GloveSkin,
   type GoalSize,
   type Mode,
   type Particle,
   type Phase,
+  type PitchTheme,
 } from "./types";
 
 const STEP = 1 / 120;
@@ -23,6 +27,14 @@ const MAX_FINGER = 2100;
 const FRICTION = 0.52;
 const REST = 0.84;
 const MAX_FINGERS = 3;
+const MATCH_TIME = 120;
+
+interface Snap {
+  bx: number;
+  by: number;
+  br: number;
+  fingers: Array<{ x: number; y: number; r: number; side: 0 | 1; bot: boolean; id: number }>;
+}
 
 export class Engine {
   private canvas: HTMLCanvasElement;
@@ -60,6 +72,21 @@ export class Engine {
   private padCool = [0, 0];
   private trail: Array<{ x: number; y: number }> = [];
   private flash = 0;
+  private botLevel: BotLevel = "normal";
+  private timerOn = false;
+  private clock = MATCH_TIME;
+  private sudden = false;
+  private theme: PitchTheme = "night";
+  private ballSkin: BallSkin = "classic";
+  private gloveSkin: GloveSkin = "ring";
+  private history: Snap[] = [];
+  private replay: Snap[] = [];
+  private replayAt = 0;
+  private pendingOver = false;
+  private scorePulse = 0;
+  private booted = false;
+  private histAcc = 0;
+  private clockAcc = 0;
 
   private ro: ResizeObserver | null = null;
   private unbind: Array<() => void> = [];
@@ -77,12 +104,24 @@ export class Engine {
     this.muted = s.muted;
     this.shakeOn = s.shake;
     this.goalSize = s.goalSize;
+    this.botLevel = s.botLevel;
+    this.timerOn = s.timerOn;
+    this.theme = s.theme;
+    this.ballSkin = s.ballSkin;
+    this.gloveSkin = s.gloveSkin;
     this.audio.setMuted(s.muted);
     patchUi({
       target: s.target,
       muted: s.muted,
       shake: s.shake,
       goalSize: s.goalSize,
+      botLevel: s.botLevel,
+      timerOn: s.timerOn,
+      theme: s.theme,
+      ballSkin: s.ballSkin,
+      gloveSkin: s.gloveSkin,
+      tutorialDone: s.tutorialDone,
+      clock: MATCH_TIME,
     });
 
     this.reducedMotion = window.matchMedia(
@@ -91,6 +130,10 @@ export class Engine {
 
     this.bind();
     this.resize();
+    this.renderer.warm(this.field, this.theme);
+    void document.fonts.ready.then(() => {
+      this.renderer.warm(this.field, this.theme);
+    });
   }
 
   start() {
@@ -224,12 +267,56 @@ export class Engine {
     patchUi({ shake });
   }
 
+  setBotLevel(level: BotLevel) {
+    this.botLevel = level;
+    this.persist();
+    patchUi({ botLevel: level });
+  }
+
+  setTimerOn(on: boolean) {
+    this.timerOn = on;
+    this.persist();
+    patchUi({ timerOn: on, clock: MATCH_TIME });
+  }
+
+  setTheme(theme: PitchTheme) {
+    this.theme = theme;
+    this.persist();
+    patchUi({ theme });
+    this.renderer.warm(this.field, this.theme);
+  }
+
+  setBallSkin(skin: BallSkin) {
+    this.ballSkin = skin;
+    this.persist();
+    patchUi({ ballSkin: skin });
+  }
+
+  setGloveSkin(skin: GloveSkin) {
+    this.gloveSkin = skin;
+    this.persist();
+    patchUi({ gloveSkin: skin });
+  }
+
+  finishTutorial() {
+    const s = loadSettings();
+    s.tutorialDone = true;
+    saveSettings(s);
+    patchUi({ tutorialDone: true });
+  }
+
   private persist() {
     saveSettings({
       target: this.target,
       muted: this.muted,
       shake: this.shakeOn,
       goalSize: this.goalSize,
+      botLevel: this.botLevel,
+      timerOn: this.timerOn,
+      theme: this.theme,
+      ballSkin: this.ballSkin,
+      gloveSkin: this.gloveSkin,
+      tutorialDone: loadSettings().tutorialDone,
     });
   }
 
@@ -244,12 +331,21 @@ export class Engine {
     this.goalLock = 0;
     this.trail = [];
     this.padCool = [0, 0];
+    this.history = [];
+    this.replay = [];
+    this.sudden = false;
+    if (resetScore) {
+      this.clock = MATCH_TIME;
+      this.pendingOver = false;
+    }
     patchUi({
       phase: "countdown",
       mode: this.mode,
       score: [...this.score] as [number, number],
       countdown: 3,
       winner: null,
+      sudden: this.sudden,
+      clock: Math.ceil(this.clock),
     });
     this.audio.whistle();
     this.audio.crowdPlay();
@@ -508,6 +604,23 @@ export class Engine {
       }
     }
 
+    if (this.phase === "replay") {
+      this.replayAt += dt * 0.38;
+      if (this.replayAt >= this.replay.length - 1) {
+        this.finishReplay();
+      }
+    }
+
+    if (this.phase === "playing" && this.timerOn && !this.sudden) {
+      this.clock = Math.max(0, this.clock - dt);
+      this.clockAcc += dt;
+      if (this.clockAcc > 0.2) {
+        this.clockAcc = 0;
+        patchUi({ clock: Math.ceil(this.clock) });
+      }
+      if (this.clock <= 0) this.onClockEnd();
+    }
+
     this.acc += dt;
     const cap = STEP * 8;
     if (this.acc > cap) this.acc = cap;
@@ -518,7 +631,9 @@ export class Engine {
 
     this.trauma = Math.max(0, this.trauma - dt * 1.8);
     this.flash = Math.max(0, this.flash - dt * 2.4);
+    this.scorePulse = Math.max(0, this.scorePulse - dt * 1.6);
     this.updateParticles(dt);
+    if (this.theme === "rain") this.tickRain(dt);
     this.draw(this.acc / STEP);
     this.raf = requestAnimationFrame(this.loop);
   };
@@ -552,6 +667,7 @@ export class Engine {
       this.tickPads(dt);
       this.collideWalls(true);
       this.pushTrail();
+      this.pushHistory(dt);
     } else if (this.phase === "countdown") {
       this.collideFingers();
     }
@@ -729,7 +845,7 @@ export class Engine {
       } else {
         b.y = top;
         b.vy = Math.abs(b.vy) * REST;
-        this.thud(b);
+        this.thud(b, b.x > gL - 22 && b.x < gR + 22);
       }
     } else if (b.y > bot) {
       if (inGoal) {
@@ -753,7 +869,7 @@ export class Engine {
       } else {
         b.y = bot;
         b.vy = -Math.abs(b.vy) * REST;
-        this.thud(b);
+        this.thud(b, b.x > gL - 22 && b.x < gR + 22);
       }
     }
   }
@@ -828,25 +944,27 @@ export class Engine {
     }
   }
 
-  private thud(b: Ball) {
+  private thud(b: Ball, post = false) {
     if (this.phase !== "playing") return;
     const sp = Math.hypot(b.vx, b.vy);
     if (sp < 80) return;
     this.audio.wall((b.x / this.field.w) * 2 - 1);
-    this.burst(b.x, b.y, 0, 0, PAPER, 4);
+    this.burst(b.x, b.y, 0, 0, PAPER, post ? 7 : 4);
+    if (post) vibrate([10, 24, 14]);
+    else vibrate(8);
   }
 
   private scoreGoal(scorer: 0 | 1) {
     if (this.phase !== "playing" || this.goalLock > this.time) return;
-    this.goalLock = this.time + 1.6;
+    this.goalLock = this.time + 2.4;
     this.score[scorer] += 1;
-    this.phase = "goal";
     this.ball.vx *= 0.2;
     this.ball.vy *= 0.2;
     this.audio.goal();
     this.addTrauma(0.85);
     this.flash = 0.55;
-    vibrate([30, 40, 70]);
+    this.scorePulse = 1;
+    vibrate([30, 40, 80, 40, 120]);
     const color = scorer === 0 ? GELO : BRASA;
     for (let i = 0; i < 64; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -865,22 +983,104 @@ export class Engine {
         kind: "confetti",
       });
     }
-    const over = this.score[scorer] >= this.target;
+    const tied = this.score[0] === this.score[1];
+    if (tied) this.audio.crowdDuck();
+    else this.audio.crowdCheer(true);
+
+    const over =
+      this.sudden ||
+      this.score[scorer] >= this.target ||
+      (this.timerOn && this.clock <= 0 && this.score[0] !== this.score[1]);
+    this.pendingOver = over;
+    this.replay = this.history.length > 8 ? this.history.slice() : [];
+    this.replayAt = 0;
+    this.phase = this.replay.length ? "replay" : over ? "over" : "goal";
     patchUi({
-      phase: over ? "over" : "goal",
+      phase: this.phase,
       score: [...this.score] as [number, number],
       lastScorer: scorer,
-      winner: over ? scorer : null,
+      winner: over && this.phase === "over" ? scorer : null,
+      scorePulse: 1,
     });
-    if (over) {
-      this.phase = "over";
+    if (this.phase === "over") {
       this.audio.win();
       return;
     }
+    if (this.phase === "goal") {
+      this.kickoffTimer = setTimeout(() => {
+        if (!this.running || this.phase !== "goal") return;
+        this.beginKickoff(false);
+      }, 1100);
+    }
+  }
+
+  private finishReplay() {
+    const scorer = useGameUi.getState().lastScorer;
+    if (this.pendingOver && scorer !== null) {
+      this.phase = "over";
+      this.audio.win();
+      patchUi({ phase: "over", winner: scorer });
+      return;
+    }
+    this.phase = "goal";
+    patchUi({ phase: "goal" });
     this.kickoffTimer = setTimeout(() => {
       if (!this.running || this.phase !== "goal") return;
       this.beginKickoff(false);
-    }, 1400);
+    }, 900);
+  }
+
+  private onClockEnd() {
+    if (this.phase !== "playing") return;
+    if (this.score[0] !== this.score[1]) {
+      const winner = this.score[0] > this.score[1] ? 0 : 1;
+      this.phase = "over";
+      this.audio.win();
+      patchUi({ phase: "over", winner, clock: 0 });
+      return;
+    }
+    this.sudden = true;
+    this.audio.whistle();
+    patchUi({ sudden: true, clock: 0 });
+  }
+
+  private pushHistory(dt: number) {
+    this.histAcc += dt;
+    if (this.histAcc < 1 / 40) return;
+    this.histAcc = 0;
+    this.history.push({
+      bx: this.ball.x,
+      by: this.ball.y,
+      br: this.ball.rot,
+      fingers: this.allFingers().map((f) => ({
+        x: f.x,
+        y: f.y,
+        r: f.r,
+        side: f.side,
+        bot: f.bot,
+        id: f.id,
+      })),
+    });
+    if (this.history.length > 80) this.history.shift();
+  }
+
+  private tickRain(dt: number) {
+    if (Math.random() > 0.55) return;
+    const f = this.field;
+    this.spawnParticle({
+      x: f.x + Math.random() * f.pw,
+      y: f.y - 8,
+      vx: -40 + Math.random() * 20,
+      vy: 520 + Math.random() * 280,
+      life: 0.45 + Math.random() * 0.25,
+      maxLife: 0.6,
+      r: 0.7 + Math.random() * 0.6,
+      color: "rgba(190,210,220,0.55)",
+      rot: 0.4,
+      vrot: 0,
+      kind: "dust",
+    });
+    void dt;
   }
 
   private updateBot(dt: number) {
@@ -894,15 +1094,20 @@ export class Engine {
 
     let tx: number;
     let ty: number;
-    const maxSpd = 820;
+    const maxSpd =
+      this.botLevel === "easy" ? 520 : this.botLevel === "hard" ? 1180 : 820;
+    const lookMul =
+      this.botLevel === "hard" ? 0.4 : this.botLevel === "easy" ? 0.12 : 0.28;
+    const chase = this.botLevel !== "easy";
+    const hold = this.botLevel === "hard" ? 0.72 : 0.5;
 
     if (f.axis === "lr") {
       const inHalf = b.x < f.midX + 8;
       const threat = b.vx < -40 && b.x < f.midX + f.pw * 0.2;
       tx = f.x + bot.r + 16;
       ty = f.midY;
-      if (threat || (inHalf && b.vx < 0)) {
-        const look = Math.min(0.28, Math.abs((bot.x - b.x) / Math.max(90, -b.vx)));
+      if (threat || (chase && inHalf && b.vx < 0)) {
+        const look = Math.min(lookMul, Math.abs((bot.x - b.x) / Math.max(90, -b.vx)));
         ty = clamp(b.y + b.vy * look, f.y + bot.r, f.y + f.ph - bot.r);
         tx = clamp(b.x - bot.r - b.r + 6, f.x + bot.r, f.midX - 12);
         if (Math.abs(b.y - bot.y) < bot.r * 1.1 && b.x > bot.x - 8) {
@@ -913,7 +1118,7 @@ export class Engine {
         ty = b.y;
         tx = Math.min(f.midX - 14, b.x - bot.r - b.r * 0.4);
       } else {
-        ty = f.midY + (b.y - f.midY) * 0.5;
+        ty = f.midY + (b.y - f.midY) * hold;
         tx = f.x + bot.r + 14;
       }
       tx = clamp(tx, f.x + 8, f.midX - 10);
@@ -923,8 +1128,8 @@ export class Engine {
       const threat = b.vy < -40 && b.y < f.midY + f.ph * 0.2;
       tx = f.midX;
       ty = f.y + bot.r + 16;
-      if (threat || (inHalf && b.vy < 0)) {
-        const look = Math.min(0.28, Math.abs((bot.y - b.y) / Math.max(90, -b.vy)));
+      if (threat || (chase && inHalf && b.vy < 0)) {
+        const look = Math.min(lookMul, Math.abs((bot.y - b.y) / Math.max(90, -b.vy)));
         tx = clamp(b.x + b.vx * look, f.x + bot.r, f.x + f.pw - bot.r);
         ty = clamp(b.y - bot.r - b.r + 6, f.y + bot.r, f.midY - 12);
         if (Math.abs(b.x - bot.x) < bot.r * 1.1 && b.y > bot.y - 8) {
@@ -935,7 +1140,7 @@ export class Engine {
         tx = b.x;
         ty = Math.min(f.midY - 14, b.y - bot.r - b.r * 0.4);
       } else {
-        tx = f.midX + (b.x - f.midX) * 0.5;
+        tx = f.midX + (b.x - f.midX) * hold;
         ty = f.y + bot.r + 14;
       }
       tx = clamp(tx, f.x + bot.r * 0.4, f.x + f.pw - bot.r * 0.4);
@@ -1022,11 +1227,33 @@ export class Engine {
     const sy = shake * 16 * Math.sin(t * 39.7 + 1.2);
     const zoom = this.reducedMotion ? 1 : 1 + shake * 0.07;
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+
+    let ball = this.ball;
+    let fingers = this.allFingers();
+    if (this.phase === "replay" && this.replay.length) {
+      const i = Math.min(this.replay.length - 1, Math.floor(this.replayAt));
+      const s = this.replay[i];
+      ball = { ...this.ball, x: s.bx, y: s.by, rot: s.br };
+      fingers = s.fingers.map((f) => ({
+        id: f.id,
+        side: f.side,
+        x: f.x,
+        y: f.y,
+        px: f.x,
+        py: f.y,
+        vx: 0,
+        vy: 0,
+        r: f.r,
+        born: 0,
+        bot: f.bot,
+      }));
+    }
+
     this.renderer.draw(
       this.ctx,
       this.field,
-      this.ball,
-      this.allFingers(),
+      ball,
+      fingers,
       this.particles,
       alpha,
       sx,
@@ -1044,8 +1271,16 @@ export class Engine {
         flash: this.flash,
         score: this.score,
         target: this.target,
+        theme: this.theme,
+        ballSkin: this.ballSkin,
+        gloveSkin: this.gloveSkin,
+        scorePulse: this.scorePulse,
       },
     );
+    if (!this.booted) {
+      this.booted = true;
+      patchUi({ booted: true });
+    }
   }
 }
 

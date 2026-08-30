@@ -4,6 +4,7 @@ export type Phase =
   | "countdown"
   | "playing"
   | "paused"
+  | "replay"
   | "goal"
   | "over";
 
@@ -13,6 +14,10 @@ export type Mode = "versus" | "bot";
 export type Axis = "tb" | "lr";
 
 export type GoalSize = "s" | "m" | "l";
+export type BotLevel = "easy" | "normal" | "hard";
+export type PitchTheme = "night" | "grass" | "rain";
+export type BallSkin = "classic" | "fire" | "ice";
+export type GloveSkin = "ring" | "stripe" | "solid";
 
 export const GOAL_SIZE_RATIO: Record<GoalSize, number> = {
   s: 0.34,
@@ -89,13 +94,19 @@ export const GELO = "#7ee0d6";
 export const BRASA = "#e07a72";
 export const PAPER = "#f3f1ea";
 
-export const SETTINGS_KEY = "golagol-v1";
+export const SETTINGS_KEY = "golagol-v2";
 
 export interface SavedSettings {
   target: number;
   muted: boolean;
   shake: boolean;
   goalSize: GoalSize;
+  botLevel: BotLevel;
+  timerOn: boolean;
+  theme: PitchTheme;
+  ballSkin: BallSkin;
+  gloveSkin: GloveSkin;
+  tutorialDone: boolean;
 }
 
 export function makeField(
@@ -152,22 +163,52 @@ export function makeField(
   };
 }
 
+function defaults(): SavedSettings {
+  return {
+    target: 5,
+    muted: false,
+    shake: true,
+    goalSize: "m",
+    botLevel: "normal",
+    timerOn: false,
+    theme: "night",
+    ballSkin: "classic",
+    gloveSkin: "ring",
+    tutorialDone: false,
+  };
+}
+
 export function loadSettings(): SavedSettings {
+  const base = defaults();
   try {
-    const raw = localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return { target: 5, muted: false, shake: true, goalSize: "m" };
+    const raw = localStorage.getItem(SETTINGS_KEY) ?? localStorage.getItem("golagol-v1");
+    if (!raw) return base;
     const parsed = JSON.parse(raw) as Partial<SavedSettings>;
     const target = parsed.target === 3 || parsed.target === 7 ? parsed.target : 5;
     const goalSize: GoalSize =
       parsed.goalSize === "s" || parsed.goalSize === "l" ? parsed.goalSize : "m";
+    const botLevel: BotLevel =
+      parsed.botLevel === "easy" || parsed.botLevel === "hard" ? parsed.botLevel : "normal";
+    const theme: PitchTheme =
+      parsed.theme === "grass" || parsed.theme === "rain" ? parsed.theme : "night";
+    const ballSkin: BallSkin =
+      parsed.ballSkin === "fire" || parsed.ballSkin === "ice" ? parsed.ballSkin : "classic";
+    const gloveSkin: GloveSkin =
+      parsed.gloveSkin === "stripe" || parsed.gloveSkin === "solid" ? parsed.gloveSkin : "ring";
     return {
       target,
       muted: Boolean(parsed.muted),
       shake: parsed.shake !== false,
       goalSize,
+      botLevel,
+      timerOn: Boolean(parsed.timerOn),
+      theme,
+      ballSkin,
+      gloveSkin,
+      tutorialDone: Boolean(parsed.tutorialDone),
     };
   } catch {
-    return { target: 5, muted: false, shake: true, goalSize: "m" };
+    return base;
   }
 }
 
