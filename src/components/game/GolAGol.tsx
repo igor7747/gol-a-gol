@@ -92,7 +92,6 @@ export function GolAGol() {
         ui.phase === "goal") && (
         <Hud
           axis={ui.axis}
-          score={ui.score}
           target={ui.target}
           paused={ui.phase === "paused"}
           fingers={ui.fingers}
@@ -325,14 +324,12 @@ function Countdown({ n }: { n: number }) {
 
 function Hud({
   axis,
-  score,
   target,
   paused,
   fingers,
   onPause,
 }: {
   axis: Axis;
-  score: [number, number];
   target: number;
   paused: boolean;
   fingers: [number, number];
@@ -342,18 +339,19 @@ function Hud({
     <div className={cn("hud pointer-none", `layout-${axis}`)}>
       <div className="hud-end hud-brasa">
         <span className="hud-name">Brasa</span>
-        <span className="hud-score">{score[1]}</span>
         <Dots n={fingers[1]} color="brasa" />
       </div>
-      <button type="button" className="hud-pause pointer-auto" onClick={onPause}>
+      <button
+        type="button"
+        className="hud-pause pointer-auto"
+        onClick={onPause}
+        aria-label={paused ? "Continuar" : "Pausar"}
+      >
         {paused ? <Play /> : <Pause />}
-        <span>
-          {score[0]}–{score[1]} · {target}
-        </span>
+        <span>até {target}</span>
       </button>
       <div className="hud-end hud-gelo">
         <span className="hud-name">Gelo</span>
-        <span className="hud-score">{score[0]}</span>
         <Dots n={fingers[0]} color="gelo" />
       </div>
     </div>

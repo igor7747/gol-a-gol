@@ -1042,6 +1042,8 @@ export class Engine {
         })),
         zoom,
         flash: this.flash,
+        score: this.score,
+        target: this.target,
       },
     );
   }

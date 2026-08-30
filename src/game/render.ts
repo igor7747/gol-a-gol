@@ -18,6 +18,8 @@ export interface DrawExtras {
   pads: Array<{ x: number; y: number; r: number; ready: boolean }>;
   zoom: number;
   flash: number;
+  score: [number, number];
+  target: number;
 }
 
 export class Renderer {
@@ -52,6 +54,7 @@ export class Renderer {
 
     this.drawPads(ctx, extras.pads, time);
     this.drawGoals(ctx, field);
+    this.drawScoreboard(ctx, field, extras.score);
     this.drawParticles(ctx, particles, "dust");
     this.drawParticles(ctx, particles, "boost");
     this.drawTrail(ctx, extras.trail, ball);
@@ -75,7 +78,7 @@ export class Renderer {
   }
 
   private ensurePitch(field: Field) {
-    const key = `${Math.round(field.w)}x${Math.round(field.h)}x${Math.round(field.goalW)}`;
+    const key = `${Math.round(field.w)}x${Math.round(field.h)}x${Math.round(field.pw)}x${Math.round(field.ph)}x${Math.round(field.goalW)}`;
     if (this.pitch && this.pitchKey === key) return;
     const c = document.createElement("canvas");
     c.width = Math.max(1, Math.round(field.w));
@@ -416,6 +419,84 @@ export class Renderer {
     ctx.stroke();
   }
 
+  private drawScoreboard(
+    ctx: CanvasRenderingContext2D,
+    f: Field,
+    score: [number, number],
+  ) {
+    const short = Math.min(f.pw, f.ph);
+    const bw = Math.max(78, Math.min(126, short * 0.3));
+    const bh = Math.max(30, Math.min(42, short * 0.095));
+    const inset = 10;
+
+    const faces =
+      f.axis === "lr"
+        ? [
+            {
+              x: f.midX - bh * 0.7,
+              y: f.y + inset + bw / 2,
+              rot: -Math.PI / 2,
+            },
+            {
+              x: f.midX + bh * 0.7,
+              y: f.y + inset + bw / 2,
+              rot: Math.PI / 2,
+            },
+          ]
+        : [
+            {
+              x: f.x + inset + bw / 2,
+              y: f.midY - bh * 0.7,
+              rot: Math.PI,
+            },
+            {
+              x: f.x + inset + bw / 2,
+              y: f.midY + bh * 0.7,
+              rot: 0,
+            },
+          ];
+
+    for (const face of faces) {
+      ctx.save();
+      ctx.translate(face.x, face.y);
+      ctx.rotate(face.rot);
+      this.paintBoard(ctx, bw, bh, score);
+      ctx.restore();
+    }
+  }
+
+  private paintBoard(
+    ctx: CanvasRenderingContext2D,
+    bw: number,
+    bh: number,
+    score: [number, number],
+  ) {
+    const x = -bw / 2;
+    const y = -bh / 2;
+    ctx.fillStyle = "rgba(4, 10, 8, 0.9)";
+    ctx.strokeStyle = "rgba(243,241,234,0.38)";
+    ctx.lineWidth = 1.6;
+    roundRect(ctx, x, y, bw, bh, bh / 2);
+    ctx.fill();
+    ctx.stroke();
+
+    const mid = 0;
+    ctx.fillStyle = "rgba(243,241,234,0.28)";
+    ctx.fillRect(mid - 0.6, y + 5, 1.2, bh - 10);
+
+    const num = Math.max(16, bh * 0.68);
+    ctx.font = `600 ${num}px "Bebas Neue", "Arial Narrow", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.shadowColor = "rgba(0,0,0,0.45)";
+    ctx.shadowBlur = 6;
+    ctx.fillStyle = BRASA;
+    ctx.fillText(String(score[1]), -bw * 0.22, 1);
+    ctx.fillStyle = GELO;
+    ctx.fillText(String(score[0]), bw * 0.22, 1);
+    ctx.shadowBlur = 0;
+  }
+
   private drawMidHint(ctx: CanvasRenderingContext2D, f: Field) {
     ctx.save();
     ctx.globalAlpha = 0.28;
@@ -553,13 +634,25 @@ export class Renderer {
   }
 
   private drawFingers(ctx: CanvasRenderingContext2D, fingers: Finger[], time: number) {
+    const slots = new Map<number, number>();
+    const born0 = fingers
+      .filter((f) => f.side === 0)
+      .sort((a, b) => a.born - b.born);
+    const born1 = fingers
+      .filter((f) => f.side === 1)
+      .sort((a, b) => a.born - b.born);
+    born0.forEach((f, i) => slots.set(f.id, i + 1));
+    born1.forEach((f, i) => slots.set(f.id, i + 1));
+
     for (const f of fingers) {
       const color = f.side === 0 ? GELO : BRASA;
+      const ink = f.side === 0 ? "#06201c" : "#2a0e0c";
       const age = Math.min(1, (time - f.born) / 0.12);
       const pop = 0.72 + 0.28 * easeOutBack(age);
       const sp = Math.hypot(f.vx, f.vy);
       const stretch = 1 + Math.min(0.22, sp / 1800);
       const ang = Math.atan2(f.vy, f.vx);
+      const slot = slots.get(f.id) ?? 1;
 
       ctx.save();
       ctx.translate(f.x, f.y);
@@ -586,31 +679,92 @@ export class Renderer {
         ctx.restore();
       }
 
-      const glow = ctx.createRadialGradient(0, 0, f.r * 0.2, 0, 0, f.r * 1.65);
-      glow.addColorStop(0, withAlpha(color, 0.5));
+      const glow = ctx.createRadialGradient(0, 0, f.r * 0.2, 0, 0, f.r * 1.7);
+      glow.addColorStop(0, withAlpha(color, 0.55));
       glow.addColorStop(1, withAlpha(color, 0));
       ctx.fillStyle = glow;
       ctx.beginPath();
-      ctx.arc(0, 0, f.r * 1.65, 0, Math.PI * 2);
+      ctx.arc(0, 0, f.r * 1.7, 0, Math.PI * 2);
       ctx.fill();
 
       ctx.beginPath();
       ctx.arc(0, 0, f.r, 0, Math.PI * 2);
-      ctx.fillStyle = withAlpha(color, 0.86);
+      ctx.fillStyle = "#121a16";
       ctx.fill();
-      ctx.lineWidth = 2.4;
-      ctx.strokeStyle = "rgba(255,255,255,0.62)";
+
+      ctx.beginPath();
+      ctx.arc(0, 0, f.r * 0.92, 0, Math.PI * 2);
+      const disc = ctx.createRadialGradient(
+        -f.r * 0.2,
+        -f.r * 0.25,
+        f.r * 0.1,
+        0,
+        0,
+        f.r,
+      );
+      disc.addColorStop(0, withAlpha(color, 1));
+      disc.addColorStop(0.55, withAlpha(color, 0.92));
+      disc.addColorStop(1, ink);
+      ctx.fillStyle = disc;
+      ctx.fill();
+
+      ctx.strokeStyle = withAlpha(PAPER, 0.7);
+      ctx.lineWidth = Math.max(2, f.r * 0.06);
+      ctx.beginPath();
+      ctx.arc(0, 0, f.r * 0.92, 0, Math.PI * 2);
       ctx.stroke();
 
+      ctx.strokeStyle = withAlpha(PAPER, 0.28);
+      ctx.lineWidth = 1.2;
       ctx.beginPath();
-      ctx.arc(-f.r * 0.18, -f.r * 0.2, f.r * 0.42, 0, Math.PI * 2);
-      ctx.fillStyle = "rgba(255,255,255,0.3)";
+      ctx.arc(0, 0, f.r * 0.72, 0, Math.PI * 2);
+      ctx.stroke();
+
+      const ticks = 8;
+      ctx.strokeStyle = withAlpha(PAPER, 0.45);
+      ctx.lineWidth = 1.4;
+      for (let i = 0; i < ticks; i++) {
+        const a = (i / ticks) * Math.PI * 2 + (f.side === 0 ? 0.2 : 0);
+        ctx.beginPath();
+        ctx.moveTo(Math.cos(a) * f.r * 0.78, Math.sin(a) * f.r * 0.78);
+        ctx.lineTo(Math.cos(a) * f.r * 0.9, Math.sin(a) * f.r * 0.9);
+        ctx.stroke();
+      }
+
+      if (f.side === 0) {
+        ctx.strokeStyle = withAlpha(PAPER, 0.35);
+        ctx.beginPath();
+        ctx.moveTo(0, -f.r * 0.55);
+        ctx.lineTo(0, -f.r * 0.22);
+        ctx.moveTo(-f.r * 0.18, -f.r * 0.42);
+        ctx.lineTo(f.r * 0.18, -f.r * 0.42);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = withAlpha(PAPER, 0.28);
+        chevron(ctx, 0, -f.r * 0.42, f.r * 0.18);
+      }
+
+      ctx.beginPath();
+      ctx.arc(-f.r * 0.22, -f.r * 0.28, f.r * 0.22, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(255,255,255,0.22)";
       ctx.fill();
 
       ctx.beginPath();
-      ctx.arc(0, 0, f.r * 0.26, 0, Math.PI * 2);
-      ctx.fillStyle = withAlpha("#0a120e", 0.38);
+      ctx.arc(0, 0, f.r * 0.34, 0, Math.PI * 2);
+      ctx.fillStyle = withAlpha(ink, 0.55);
       ctx.fill();
+
+      ctx.fillStyle = PAPER;
+      ctx.font = `700 ${f.r * 0.58}px "Bebas Neue", "Arial Narrow", sans-serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(String(slot), 0, f.r * 0.04);
+
+      if (f.bot) {
+        ctx.font = `600 ${f.r * 0.18}px Outfit, system-ui, sans-serif`;
+        ctx.fillStyle = withAlpha(PAPER, 0.7);
+        ctx.fillText("BOT", 0, f.r * 0.38);
+      }
 
       ctx.restore();
     }
