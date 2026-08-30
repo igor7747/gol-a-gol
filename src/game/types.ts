@@ -16,8 +16,8 @@ export type Axis = "tb" | "lr";
 export type GoalSize = "s" | "m" | "l";
 export type BotLevel = "easy" | "normal" | "hard";
 export type PitchTheme = "night" | "grass" | "rain";
-export type BallSkin = "classic" | "fire" | "ice";
-export type GloveSkin = "ring" | "stripe" | "solid";
+export type BallSkin = "classic" | "fire" | "ice" | "smile";
+export type GloveSkin = "ring" | "stripe" | "solid" | "star";
 
 export interface SideStats {
   shots: number;
@@ -205,9 +205,15 @@ export function loadSettings(): SavedSettings {
     const theme: PitchTheme =
       parsed.theme === "grass" || parsed.theme === "rain" ? parsed.theme : "night";
     const ballSkin: BallSkin =
-      parsed.ballSkin === "fire" || parsed.ballSkin === "ice" ? parsed.ballSkin : "classic";
+      parsed.ballSkin === "fire" || parsed.ballSkin === "ice" || parsed.ballSkin === "smile"
+        ? parsed.ballSkin
+        : "classic";
     const gloveSkin: GloveSkin =
-      parsed.gloveSkin === "stripe" || parsed.gloveSkin === "solid" ? parsed.gloveSkin : "ring";
+      parsed.gloveSkin === "stripe" ||
+      parsed.gloveSkin === "solid" ||
+      parsed.gloveSkin === "star"
+        ? parsed.gloveSkin
+        : "ring";
     return {
       target,
       muted: Boolean(parsed.muted),

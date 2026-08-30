@@ -326,6 +326,7 @@ function Options({
               ["classic", "Clássica"],
               ["fire", "Fogo"],
               ["ice", "Gelo"],
+              ["smile", "Sorriso"],
             ] as const
           ).map(([id, label]) => (
             <button
@@ -348,6 +349,7 @@ function Options({
               ["ring", "Anel"],
               ["stripe", "Faixa"],
               ["solid", "Cheia"],
+              ["star", "Estrela"],
             ] as const
           ).map(([id, label]) => (
             <button

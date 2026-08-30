@@ -656,6 +656,20 @@ export class Renderer {
     ctx.restore();
   }
 
+  private drawSmileFace(ctx: CanvasRenderingContext2D, r: number) {
+    ctx.fillStyle = "#1a1208";
+    ctx.beginPath();
+    ctx.ellipse(-r * 0.22, -r * 0.12, r * 0.1, r * 0.14, 0, 0, Math.PI * 2);
+    ctx.ellipse(r * 0.22, -r * 0.12, r * 0.1, r * 0.14, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#1a1208";
+    ctx.lineWidth = r * 0.08;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.arc(0, r * 0.08, r * 0.38, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+  }
+
   private drawBallShadow(ctx: CanvasRenderingContext2D, ball: Ball, alpha: number) {
     const x = ball.px + (ball.x - ball.px) * alpha;
     const y = ball.py + (ball.y - ball.py) * alpha;
@@ -693,7 +707,9 @@ export class Renderer {
           ? "rgba(126,224,214,0.35)"
           : skin === "fire"
             ? "rgba(255,140,90,0.38)"
-            : "rgba(255,210,160,0.28)";
+            : skin === "smile"
+              ? "rgba(250,210,80,0.4)"
+              : "rgba(255,210,160,0.28)";
       aura.addColorStop(0, glow);
       aura.addColorStop(1, "rgba(255,210,160,0)");
       ctx.fillStyle = aura;
@@ -705,24 +721,34 @@ export class Renderer {
     ctx.beginPath();
     ctx.arc(0, 0, ball.r, 0, Math.PI * 2);
     ctx.fillStyle =
-      skin === "fire" ? "#f4a574" : skin === "ice" ? "#d8f7f3" : "#f7f6f2";
+      skin === "fire"
+        ? "#f4a574"
+        : skin === "ice"
+          ? "#d8f7f3"
+          : skin === "smile"
+            ? "#f5d15a"
+            : "#f7f6f2";
     ctx.fill();
     ctx.save();
     ctx.clip();
-    ctx.fillStyle = skin === "fire" ? "#5a1c12" : skin === "ice" ? "#1a4a48" : "#161616";
-    ctx.strokeStyle = ctx.fillStyle;
-    ctx.lineWidth = ball.r * 0.07;
-    pentagon(ctx, 0, 0, ball.r * 0.3, -Math.PI / 2, true);
-    for (let i = 0; i < 5; i++) {
-      const a = -Math.PI / 2 + (i * Math.PI * 2) / 5;
-      const d = ball.r * 0.7;
-      pentagon(ctx, Math.cos(a) * d, Math.sin(a) * d, ball.r * 0.2, a, true);
+    if (skin === "smile") {
+      this.drawSmileFace(ctx, ball.r);
+    } else {
+      ctx.fillStyle = skin === "fire" ? "#5a1c12" : skin === "ice" ? "#1a4a48" : "#161616";
+      ctx.strokeStyle = ctx.fillStyle;
+      ctx.lineWidth = ball.r * 0.07;
+      pentagon(ctx, 0, 0, ball.r * 0.3, -Math.PI / 2, true);
+      for (let i = 0; i < 5; i++) {
+        const a = -Math.PI / 2 + (i * Math.PI * 2) / 5;
+        const d = ball.r * 0.7;
+        pentagon(ctx, Math.cos(a) * d, Math.sin(a) * d, ball.r * 0.2, a, true);
+      }
+      ctx.beginPath();
+      ctx.arc(0, 0, ball.r * 0.52, 0, Math.PI * 2);
+      ctx.strokeStyle = "rgba(20,20,20,0.35)";
+      ctx.lineWidth = ball.r * 0.05;
+      ctx.stroke();
     }
-    ctx.beginPath();
-    ctx.arc(0, 0, ball.r * 0.52, 0, Math.PI * 2);
-    ctx.strokeStyle = "rgba(20,20,20,0.35)";
-    ctx.lineWidth = ball.r * 0.05;
-    ctx.stroke();
     ctx.restore();
 
     ctx.beginPath();
@@ -840,7 +866,11 @@ export class Renderer {
         ctx.fillRect(-f.r * 0.92, -f.r * 0.16, f.r * 1.84, f.r * 0.32);
       }
 
-      if (glove !== "solid") {
+      if (glove === "star") {
+        ctx.fillStyle = withAlpha(PAPER, 0.9);
+        starPath(ctx, 0, 0, f.r * 0.42);
+        ctx.fill();
+      } else if (glove !== "solid") {
         ctx.strokeStyle = withAlpha(PAPER, 0.28);
         ctx.lineWidth = 1.2;
         ctx.beginPath();
@@ -972,6 +1002,19 @@ function roundRect(
   ctx.arcTo(x + w, y + h, x, y + h, rr);
   ctx.arcTo(x, y + h, x, y, rr);
   ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+function starPath(ctx: CanvasRenderingContext2D, x: number, y: number, r: number) {
+  ctx.beginPath();
+  for (let i = 0; i < 10; i++) {
+    const a = -Math.PI / 2 + (i * Math.PI) / 5;
+    const rad = i % 2 === 0 ? r : r * 0.4;
+    const px = x + Math.cos(a) * rad;
+    const py = y + Math.sin(a) * rad;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
   ctx.closePath();
 }
 
