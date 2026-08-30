@@ -5,37 +5,51 @@ import { Button } from "@/components/ui/button";
 export function Landing() {
   return (
     <div className="land">
-      <div className="land-pitch" aria-hidden="true">
-        <span className="land-mid" />
-        <span className="land-circle" />
-        <span className="land-ball" />
-      </div>
-
-      <header className="land-hero">
-        <p className="land-kicker">Dois jogadores · um celular</p>
-        <h1 className="land-title">Gol a Gol</h1>
-        <p className="land-lead">
-          Deite o celular na mesa. Cada um num gol. O dedo defende e chuta ao
-          mesmo tempo — multi-toque, boost e três tamanhos de arco.
-        </p>
-        <Button asChild size="xl" className="land-cta">
-          <Link to="/play">
-            <Zap />
-            Jogar agora
-          </Link>
-        </Button>
-      </header>
-
-      <section className="land-teams" aria-label="Times">
-        <div className="land-team land-brasa">
-          <span className="land-team-name">Brasa</span>
-          <span className="land-team-note">Um extremo do campo</span>
-        </div>
-        <div className="land-team land-gelo">
-          <span className="land-team-name">Gelo</span>
-          <span className="land-team-note">O gol de frente</span>
+      <section className="land-hero-art">
+        <img
+          src="/art/hero.jpg"
+          alt="Arena de mesa: Gelo e Brasa no gramado"
+        />
+        <div className="land-hero-shade" />
+        <div className="land-hero-copy">
+          <p className="land-kicker">Dois jogadores · um celular</p>
+          <h1 className="land-title">Gol a Gol</h1>
+          <p className="land-lead">
+            Deite o celular na mesa. Cada um num gol. O dedo defende e chuta
+            ao mesmo tempo.
+          </p>
+          <Button asChild size="xl" className="land-cta">
+            <Link to="/play" search={{ go: "versus" }}>
+              <Zap />
+              Jogar agora
+            </Link>
+          </Button>
         </div>
       </section>
+
+      <section className="land-teams" aria-label="Times">
+        <article className="land-team land-brasa">
+          <img src="/art/brasa.jpg" alt="" className="land-crest" />
+          <div>
+            <span className="land-team-name">Brasa</span>
+            <span className="land-team-note">Um extremo do campo</span>
+          </div>
+        </article>
+        <article className="land-team land-gelo">
+          <img src="/art/gelo.jpg" alt="" className="land-crest" />
+          <div>
+            <span className="land-team-name">Gelo</span>
+            <span className="land-team-note">O gol de frente</span>
+          </div>
+        </article>
+      </section>
+
+      <figure className="land-shot">
+        <img
+          src="/art/mesa.jpg"
+          alt="Celular deitado na mesa, um jogador em cada ponta"
+        />
+      </figure>
 
       <ol className="land-steps">
         <li>
@@ -63,9 +77,18 @@ export function Landing() {
 
       <footer className="land-foot">
         <p>Gelo vs Brasa · arena de mesa</p>
-        <Button asChild variant="outline" size="lg" className="land-cta-ghost">
-          <Link to="/play">Entrar na partida</Link>
-        </Button>
+        <div className="land-foot-actions">
+          <Button asChild size="lg">
+            <Link to="/play" search={{ go: "versus" }}>
+              Dois jogadores
+            </Link>
+          </Button>
+          <Button asChild variant="outline" size="lg">
+            <Link to="/play" search={{ go: "bot" }}>
+              Contra o bot
+            </Link>
+          </Button>
+        </div>
       </footer>
     </div>
   );
