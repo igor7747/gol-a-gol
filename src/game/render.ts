@@ -424,99 +424,63 @@ export class Renderer {
     f: Field,
     score: [number, number],
   ) {
-    const short = Math.min(f.pw, f.ph);
-    const room =
-      f.axis === "tb"
-        ? (f.pw - f.goalW) / 2
-        : (f.ph - f.goalW) / 2;
-    const bw = Math.max(48, Math.min(room - 10, short * 0.2));
-    const bh = Math.max(26, Math.min(36, bw * 0.42));
-    const pad = Math.max(6, Math.min(12, room * 0.12));
+    const r = Math.max(15, Math.min(21, Math.min(f.pw, f.ph) * 0.042));
+    const gap = Math.max(6, r * 0.45);
 
-    const faces =
-      f.axis === "lr"
-        ? this.goalFlankFacesLr(f, bw, bh, pad)
-        : this.goalFlankFacesTb(f, bw, bh, pad);
-
-    for (const face of faces) {
-      ctx.save();
-      ctx.translate(face.x, face.y);
-      ctx.rotate(face.rot);
-      this.paintBoard(ctx, bw, bh, score);
-      ctx.restore();
+    if (f.axis === "tb") {
+      const gl = f.midX - f.goalW / 2;
+      const gr = f.midX + f.goalW / 2;
+      const left = Math.max(r + 8, gl - gap - r);
+      const right = Math.min(f.w - r - 8, gr + gap + r);
+      const topY = Math.max(r + 8, f.y - f.goalD * 0.52);
+      const botY = Math.min(f.h - r - 8, f.y + f.ph + f.goalD * 0.52);
+      // Top is rotated 180: swap sides so each player reads Brasa on their left.
+      this.paintBadge(ctx, left, topY, r, score[0], GELO, Math.PI);
+      this.paintBadge(ctx, right, topY, r, score[1], BRASA, Math.PI);
+      this.paintBadge(ctx, left, botY, r, score[1], BRASA, 0);
+      this.paintBadge(ctx, right, botY, r, score[0], GELO, 0);
+      return;
     }
-  }
 
-  private goalFlankFacesTb(
-    f: Field,
-    bw: number,
-    bh: number,
-    pad: number,
-  ) {
-    const gl = f.midX - f.goalW / 2;
-    const gr = f.midX + f.goalW / 2;
-    const leftX = gl - pad - bw / 2;
-    const rightX = gr + pad + bw / 2;
-    const topY = f.y + pad + bh / 2 + 2;
-    const botY = f.y + f.ph - pad - bh / 2 - 2;
-    return [
-      { x: leftX, y: topY, rot: Math.PI },
-      { x: rightX, y: topY, rot: Math.PI },
-      { x: leftX, y: botY, rot: 0 },
-      { x: rightX, y: botY, rot: 0 },
-    ];
-  }
-
-  private goalFlankFacesLr(
-    f: Field,
-    bw: number,
-    bh: number,
-    pad: number,
-  ) {
     const gt = f.midY - f.goalW / 2;
     const gb = f.midY + f.goalW / 2;
-    const topY = gt - pad - bw / 2;
-    const botY = gb + pad + bw / 2;
-    const leftX = f.x + pad + bh / 2;
-    const rightX = f.x + f.pw - pad - bh / 2;
-    return [
-      { x: leftX, y: topY, rot: -Math.PI / 2 },
-      { x: leftX, y: botY, rot: -Math.PI / 2 },
-      { x: rightX, y: topY, rot: Math.PI / 2 },
-      { x: rightX, y: botY, rot: Math.PI / 2 },
-    ];
+    const top = Math.max(r + 8, gt - gap - r);
+    const bot = Math.min(f.h - r - 8, gb + gap + r);
+    const leftX = Math.max(r + 8, f.x - f.goalD * 0.52);
+    const rightX = Math.min(f.w - r - 8, f.x + f.pw + f.goalD * 0.52);
+    this.paintBadge(ctx, leftX, top, r, score[0], GELO, -Math.PI / 2);
+    this.paintBadge(ctx, leftX, bot, r, score[1], BRASA, -Math.PI / 2);
+    this.paintBadge(ctx, rightX, top, r, score[1], BRASA, Math.PI / 2);
+    this.paintBadge(ctx, rightX, bot, r, score[0], GELO, Math.PI / 2);
   }
 
-  private paintBoard(
+  private paintBadge(
     ctx: CanvasRenderingContext2D,
-    bw: number,
-    bh: number,
-    score: [number, number],
+    x: number,
+    y: number,
+    r: number,
+    n: number,
+    color: string,
+    rot: number,
   ) {
-    const x = -bw / 2;
-    const y = -bh / 2;
-    ctx.fillStyle = "rgba(4, 10, 8, 0.9)";
-    ctx.strokeStyle = "rgba(243,241,234,0.38)";
-    ctx.lineWidth = 1.6;
-    roundRect(ctx, x, y, bw, bh, bh / 2);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(6, 12, 10, 0.92)";
     ctx.fill();
+    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = color;
     ctx.stroke();
 
-    const mid = 0;
-    ctx.fillStyle = "rgba(243,241,234,0.28)";
-    ctx.fillRect(mid - 0.6, y + 5, 1.2, bh - 10);
-
-    const num = Math.max(16, bh * 0.68);
-    ctx.font = `600 ${num}px "Bebas Neue", "Arial Narrow", sans-serif`;
+    ctx.fillStyle = color;
+    ctx.font = `700 ${r * 1.15}px "Bebas Neue", "Arial Narrow", sans-serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.shadowColor = "rgba(0,0,0,0.45)";
-    ctx.shadowBlur = 6;
-    ctx.fillStyle = BRASA;
-    ctx.fillText(String(score[1]), -bw * 0.22, 1);
-    ctx.fillStyle = GELO;
-    ctx.fillText(String(score[0]), bw * 0.22, 1);
-    ctx.shadowBlur = 0;
+    ctx.fillText(String(n), 0, 1);
+    ctx.restore();
   }
 
   private drawMidHint(ctx: CanvasRenderingContext2D, f: Field) {
