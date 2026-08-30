@@ -104,7 +104,10 @@ export function GolAGol({ start }: { start?: Mode }) {
           onBall={(s) => eng()?.setBallSkin(s)}
           onGlove={(s) => eng()?.setGloveSkin(s)}
           onCamFeel={(f) => eng()?.setCamFeel(f)}
-          onPlay={() => launch(mode)}
+          onPlay={(m) => {
+            setMode(m);
+            launch(m);
+          }}
           onMute={() => eng()?.setMuted(!ui.muted)}
         />
       )}
@@ -141,7 +144,6 @@ export function GolAGol({ start }: { start?: Mode }) {
         <PauseMenu
           muted={ui.muted}
           camFeel={ui.camFeel}
-          stats={ui.stats}
           onResume={() => eng()?.resume()}
           onMenu={() => eng()?.toMenu()}
           onMute={() => eng()?.setMuted(!ui.muted)}
@@ -254,12 +256,17 @@ function Hud({
         type="button"
         className="hud-pause pointer-auto"
         onClick={onPause}
-        aria-label={paused ? "Continuar" : "Pausar"}
+        aria-label={
+          paused
+            ? "Continuar"
+            : sudden
+              ? "Pausar, morte súbita"
+              : timerOn
+                ? `Pausar ${mm}:${ss}`
+                : "Pausar"
+        }
       >
         {paused ? <Play /> : <Pause />}
-        <span>
-          {sudden ? "Morte súbita" : timerOn ? `${mm}:${ss}` : `até ${target}`}
-        </span>
       </button>
     </div>
   );
@@ -268,7 +275,6 @@ function Hud({
 function PauseMenu({
   muted,
   camFeel,
-  stats,
   onResume,
   onMenu,
   onMute,
@@ -276,7 +282,6 @@ function PauseMenu({
 }: {
   muted: boolean;
   camFeel: CamFeel;
-  stats: [SideStats, SideStats];
   onResume: () => void;
   onMenu: () => void;
   onMute: () => void;
@@ -287,7 +292,6 @@ function PauseMenu({
       <div className="panel">
         <h2 className="panel-title">Pausa</h2>
         <FeelPick value={camFeel} onPick={onCamFeel} />
-        <StatTable gelo={stats[0]} brasa={stats[1]} />
         <div className="panel-actions">
           <Button size="lg" onClick={onResume}>
             <Play />
