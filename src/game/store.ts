@@ -5,6 +5,7 @@ import type {
   BallSkin,
   BotLevel,
   GloveSkin,
+  CamFeel,
   GoalSize,
   Mode,
   Phase,
@@ -24,7 +25,7 @@ export interface GameUi {
   countdown: number;
   ready: [boolean, boolean];
   muted: boolean;
-  shake: boolean;
+  camFeel: CamFeel;
   fingers: [number, number];
   booted: boolean;
   botLevel: BotLevel;
@@ -55,7 +56,7 @@ export const useGameUi = create<GameUiApi>((set) => ({
   countdown: 0,
   ready: [false, false],
   muted: false,
-  shake: true,
+  camFeel: "medio",
   fingers: [0, 0],
   booted: false,
   botLevel: "normal",

@@ -101,6 +101,7 @@ export function GolAGol({ start }: { start?: Mode }) {
           theme={ui.theme}
           ballSkin={ui.ballSkin}
           gloveSkin={ui.gloveSkin}
+          camFeel={ui.camFeel}
           onMode={setMode}
           onOptions={() => setOptions((v) => !v)}
           onTarget={(n) => eng()?.setTarget(n)}
@@ -110,6 +111,7 @@ export function GolAGol({ start }: { start?: Mode }) {
           onTheme={(t) => eng()?.setTheme(t)}
           onBall={(s) => eng()?.setBallSkin(s)}
           onGlove={(s) => eng()?.setGloveSkin(s)}
+          onCamFeel={(f) => eng()?.setCamFeel(f)}
           onPlay={() => launch(mode)}
           onMute={() => eng()?.setMuted(!ui.muted)}
         />

@@ -12,6 +12,7 @@ import {
   type Ball,
   type BallSkin,
   type BotLevel,
+  type CamFeel,
   type Field,
   type Finger,
   type GloveSkin,
@@ -80,7 +81,7 @@ export class Engine {
   private score: [number, number] = [0, 0];
   private target = 5;
   private muted = false;
-  private shakeOn = true;
+  private camFeel: CamFeel = "medio";
   private ready: [boolean, boolean] = [false, false];
   private goalSize: GoalSize = "m";
   private padCool = [0, 0];
@@ -120,7 +121,7 @@ export class Engine {
     const s = loadSettings();
     this.target = s.target;
     this.muted = s.muted;
-    this.shakeOn = s.shake;
+    this.camFeel = s.camFeel;
     this.goalSize = s.goalSize;
     this.botLevel = s.botLevel;
     this.timerOn = s.timerOn;
@@ -131,7 +132,7 @@ export class Engine {
     patchUi({
       target: s.target,
       muted: s.muted,
-      shake: s.shake,
+      camFeel: s.camFeel,
       goalSize: s.goalSize,
       botLevel: s.botLevel,
       timerOn: s.timerOn,
@@ -281,10 +282,10 @@ export class Engine {
     patchUi({ muted });
   }
 
-  setShake(shake: boolean) {
-    this.shakeOn = shake;
+  setCamFeel(feel: CamFeel) {
+    this.camFeel = feel;
     this.persist();
-    patchUi({ shake });
+    patchUi({ camFeel: feel });
   }
 
   setBotLevel(level: BotLevel) {
@@ -329,7 +330,7 @@ export class Engine {
     saveSettings({
       target: this.target,
       muted: this.muted,
-      shake: this.shakeOn,
+      camFeel: this.camFeel,
       goalSize: this.goalSize,
       botLevel: this.botLevel,
       timerOn: this.timerOn,
@@ -776,8 +777,13 @@ export class Engine {
           this.noteTouch(f.side, kick, impact, incoming, corridor);
           this.audio.kick(impact, (b.x / this.field.w) * 2 - 1);
           this.addTrauma(0.16 + impact * 0.38);
-          if (impact > 0.38) this.hitstop = this.reducedMotion ? 0 : 0.045 + impact * 0.03;
-          if (impact > 0.62) this.flash = Math.max(this.flash, 0.22);
+          const feel = this.feel();
+          if (impact > 0.38) {
+            this.hitstop = this.reducedMotion
+              ? 0
+              : (0.045 + impact * 0.03) * feel.hit;
+          }
+          if (impact > 0.62) this.flash = Math.max(this.flash, 0.22 * feel.flash);
           this.burst(
             b.x,
             b.y,
@@ -819,7 +825,7 @@ export class Engine {
       this.padCool[i] = 1.7;
       this.stats[this.lastTouch].boosts += 1;
       this.addTrauma(0.28);
-      this.flash = Math.max(this.flash, 0.16);
+      this.flash = Math.max(this.flash, 0.16 * this.feel().flash);
       this.audio.kick(0.7, (b.x / this.field.w) * 2 - 1);
       this.burst(p.x, p.y, nx, ny, PAPER, 14);
       for (let k = 0; k < 8; k++) {
@@ -1068,7 +1074,7 @@ export class Engine {
   private burstGoal(scorer: 0 | 1) {
     const color = scorer === 0 ? GELO : BRASA;
     const b = this.ball;
-    this.flash = 0.35;
+    this.flash = 0.35 * this.feel().flash;
     this.addTrauma(0.4);
     for (let i = 0; i < 48; i++) {
       const a = Math.random() * Math.PI * 2;
@@ -1290,9 +1296,22 @@ export class Engine {
     bot.y = pos.y;
   }
 
+  private feel() {
+    if (this.reducedMotion) {
+      return { amp: 0, zoom: 0, gain: 0, hit: 0, flash: 0 };
+    }
+    if (this.camFeel === "leve") {
+      return { amp: 5, zoom: 0.02, gain: 0.38, hit: 0.32, flash: 0.35 };
+    }
+    if (this.camFeel === "medio") {
+      return { amp: 10, zoom: 0.042, gain: 0.68, hit: 0.62, flash: 0.65 };
+    }
+    return { amp: 16, zoom: 0.07, gain: 1, hit: 1, flash: 1 };
+  }
+
   private addTrauma(n: number) {
-    if (!this.shakeOn || this.reducedMotion) return;
-    this.trauma = Math.min(1, this.trauma + n);
+    if (this.reducedMotion) return;
+    this.trauma = Math.min(1, this.trauma + n * this.feel().gain);
   }
 
   private burst(
@@ -1348,9 +1367,10 @@ export class Engine {
   private draw(alpha: number) {
     const shake = this.trauma * this.trauma;
     const t = this.time;
-    const sx = shake * 16 * Math.sin(t * 47.2);
-    const sy = shake * 16 * Math.sin(t * 39.7 + 1.2);
-    const zoom = this.reducedMotion ? 1 : 1 + shake * 0.07;
+    const feel = this.feel();
+    const sx = shake * feel.amp * Math.sin(t * 47.2);
+    const sy = shake * feel.amp * Math.sin(t * 39.7 + 1.2);
+    const zoom = 1 + shake * feel.zoom;
     this.ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
 
     let ball = this.ball;

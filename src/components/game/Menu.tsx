@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button";
 import type {
   BallSkin,
   BotLevel,
+  CamFeel,
   GloveSkin,
   GoalSize,
   Mode,
@@ -34,6 +35,7 @@ export function Menu({
   theme,
   ballSkin,
   gloveSkin,
+  camFeel,
   onMode,
   onOptions,
   onTarget,
@@ -43,6 +45,7 @@ export function Menu({
   onTheme,
   onBall,
   onGlove,
+  onCamFeel,
   onPlay,
   onMute,
 }: {
@@ -56,6 +59,7 @@ export function Menu({
   theme: PitchTheme;
   ballSkin: BallSkin;
   gloveSkin: GloveSkin;
+  camFeel: CamFeel;
   onMode: (m: Mode) => void;
   onOptions: () => void;
   onTarget: (n: number) => void;
@@ -65,6 +69,7 @@ export function Menu({
   onTheme: (t: PitchTheme) => void;
   onBall: (s: BallSkin) => void;
   onGlove: (s: GloveSkin) => void;
+  onCamFeel: (f: CamFeel) => void;
   onPlay: () => void;
   onMute: () => void;
 }) {
@@ -72,6 +77,7 @@ export function Menu({
     goalSize === "s" ? "gol pequeno" : goalSize === "l" ? "gol grande" : "gol médio",
     timerOn ? "2 min" : `até ${target}`,
     theme === "grass" ? "grama" : theme === "rain" ? "chuva" : "noite",
+    camFeel,
   ].join(" · ");
 
   return (
@@ -146,6 +152,7 @@ export function Menu({
             theme={theme}
             ballSkin={ballSkin}
             gloveSkin={gloveSkin}
+            camFeel={camFeel}
             onTarget={onTarget}
             onGoalSize={onGoalSize}
             onBotLevel={onBotLevel}
@@ -153,6 +160,7 @@ export function Menu({
             onTheme={onTheme}
             onBall={onBall}
             onGlove={onGlove}
+            onCamFeel={onCamFeel}
           />
         )}
 
@@ -179,6 +187,7 @@ function Options({
   theme,
   ballSkin,
   gloveSkin,
+  camFeel,
   onTarget,
   onGoalSize,
   onBotLevel,
@@ -186,6 +195,7 @@ function Options({
   onTheme,
   onBall,
   onGlove,
+  onCamFeel,
 }: {
   mode: Mode;
   target: number;
@@ -195,6 +205,7 @@ function Options({
   theme: PitchTheme;
   ballSkin: BallSkin;
   gloveSkin: GloveSkin;
+  camFeel: CamFeel;
   onTarget: (n: number) => void;
   onGoalSize: (s: GoalSize) => void;
   onBotLevel: (l: BotLevel) => void;
@@ -202,6 +213,7 @@ function Options({
   onTheme: (t: PitchTheme) => void;
   onBall: (s: BallSkin) => void;
   onGlove: (s: GloveSkin) => void;
+  onCamFeel: (f: CamFeel) => void;
 }) {
   return (
     <div className="menu-options">
@@ -291,6 +303,28 @@ function Options({
           </div>
         </div>
       )}
+
+      <div className="menu-row">
+        <span className="menu-label">Campo se mexe</span>
+        <div className="chip-row">
+          {(
+            [
+              ["leve", "Leve"],
+              ["medio", "Médio"],
+              ["forte", "Forte"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              className={cn("chip", camFeel === id && "chip-on")}
+              onClick={() => onCamFeel(id)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="setup-block">
         <span className="menu-label">Campo</span>

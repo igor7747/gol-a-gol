@@ -18,6 +18,7 @@ export type BotLevel = "easy" | "normal" | "hard";
 export type PitchTheme = "night" | "grass" | "rain";
 export type BallSkin = "classic" | "fire" | "ice" | "smile";
 export type GloveSkin = "ring" | "stripe" | "solid" | "star";
+export type CamFeel = "leve" | "medio" | "forte";
 
 export interface SideStats {
   shots: number;
@@ -112,7 +113,7 @@ export const SETTINGS_KEY = "golagol-v2";
 export interface SavedSettings {
   target: number;
   muted: boolean;
-  shake: boolean;
+  camFeel: CamFeel;
   goalSize: GoalSize;
   botLevel: BotLevel;
   timerOn: boolean;
@@ -180,7 +181,7 @@ function defaults(): SavedSettings {
   return {
     target: 5,
     muted: false,
-    shake: true,
+    camFeel: "medio",
     goalSize: "m",
     botLevel: "normal",
     timerOn: false,
@@ -214,10 +215,16 @@ export function loadSettings(): SavedSettings {
       parsed.gloveSkin === "star"
         ? parsed.gloveSkin
         : "ring";
+    const camFeel: CamFeel =
+      parsed.camFeel === "leve" || parsed.camFeel === "forte"
+        ? parsed.camFeel
+        : (parsed as { shake?: boolean }).shake === false
+          ? "leve"
+          : "medio";
     return {
       target,
       muted: Boolean(parsed.muted),
-      shake: parsed.shake !== false,
+      camFeel,
       goalSize,
       botLevel,
       timerOn: Boolean(parsed.timerOn),
