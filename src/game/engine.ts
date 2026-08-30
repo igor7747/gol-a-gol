@@ -82,6 +82,7 @@ export class Engine {
   private history: Snap[] = [];
   private replay: Snap[] = [];
   private replayAt = 0;
+  private replayClock = 0;
   private pendingOver = false;
   private scorePulse = 0;
   private booted = false;
@@ -605,8 +606,10 @@ export class Engine {
     }
 
     if (this.phase === "replay") {
-      this.replayAt += dt * 0.38;
-      if (this.replayAt >= this.replay.length - 1) {
+      this.replayClock += dt;
+      const last = Math.max(1, this.replay.length - 1);
+      this.replayAt += dt * (last / 1.35);
+      if (this.replayAt >= last || this.replayClock > 1.8) {
         this.finishReplay();
       }
     }
@@ -992,8 +995,10 @@ export class Engine {
       this.score[scorer] >= this.target ||
       (this.timerOn && this.clock <= 0 && this.score[0] !== this.score[1]);
     this.pendingOver = over;
-    this.replay = this.history.length > 8 ? this.history.slice() : [];
+    const canReplay = !this.reducedMotion && this.history.length > 8;
+    this.replay = canReplay ? this.history.slice() : [];
     this.replayAt = 0;
+    this.replayClock = 0;
     this.phase = this.replay.length ? "replay" : over ? "over" : "goal";
     patchUi({
       phase: this.phase,
@@ -1015,6 +1020,10 @@ export class Engine {
   }
 
   private finishReplay() {
+    if (this.phase !== "replay") return;
+    this.replay = [];
+    this.replayAt = 0;
+    this.replayClock = 0;
     const scorer = useGameUi.getState().lastScorer;
     if (this.pendingOver && scorer !== null) {
       this.phase = "over";
@@ -1231,22 +1240,27 @@ export class Engine {
     let ball = this.ball;
     let fingers = this.allFingers();
     if (this.phase === "replay" && this.replay.length) {
-      const i = Math.min(this.replay.length - 1, Math.floor(this.replayAt));
+      const i = Math.min(
+        this.replay.length - 1,
+        Math.max(0, Math.floor(this.replayAt) || 0),
+      );
       const s = this.replay[i];
-      ball = { ...this.ball, x: s.bx, y: s.by, rot: s.br };
-      fingers = s.fingers.map((f) => ({
-        id: f.id,
-        side: f.side,
-        x: f.x,
-        y: f.y,
-        px: f.x,
-        py: f.y,
-        vx: 0,
-        vy: 0,
-        r: f.r,
-        born: 0,
-        bot: f.bot,
-      }));
+      if (s) {
+        ball = { ...this.ball, x: s.bx, y: s.by, rot: s.br };
+        fingers = s.fingers.map((f) => ({
+          id: f.id,
+          side: f.side,
+          x: f.x,
+          y: f.y,
+          px: f.x,
+          py: f.y,
+          vx: 0,
+          vy: 0,
+          r: f.r,
+          born: 0,
+          bot: false,
+        }));
+      }
     }
 
     this.renderer.draw(
