@@ -19,6 +19,19 @@ export type PitchTheme = "night" | "grass" | "rain";
 export type BallSkin = "classic" | "fire" | "ice";
 export type GloveSkin = "ring" | "stripe" | "solid";
 
+export interface SideStats {
+  shots: number;
+  onTarget: number;
+  saves: number;
+  boosts: number;
+  touches: number;
+  maxSpd: number;
+}
+
+export function emptyStats(): SideStats {
+  return { shots: 0, onTarget: 0, saves: 0, boosts: 0, touches: 0, maxSpd: 0 };
+}
+
 export const GOAL_SIZE_RATIO: Record<GoalSize, number> = {
   s: 0.34,
   m: 0.52,

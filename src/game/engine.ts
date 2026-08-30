@@ -5,6 +5,7 @@ import {
   BRASA,
   GELO,
   PAPER,
+  emptyStats,
   loadSettings,
   makeField,
   saveSettings,
@@ -19,6 +20,7 @@ import {
   type Particle,
   type Phase,
   type PitchTheme,
+  type SideStats,
 } from "./types";
 
 const STEP = 1 / 120;
@@ -33,7 +35,19 @@ interface Snap {
   bx: number;
   by: number;
   br: number;
-  fingers: Array<{ x: number; y: number; r: number; side: 0 | 1; bot: boolean; id: number }>;
+  bvx: number;
+  bvy: number;
+  kick: boolean;
+  fingers: Array<{
+    x: number;
+    y: number;
+    vx: number;
+    vy: number;
+    r: number;
+    side: 0 | 1;
+    bot: boolean;
+    id: number;
+  }>;
 }
 
 export class Engine {
@@ -88,6 +102,9 @@ export class Engine {
   private booted = false;
   private histAcc = 0;
   private clockAcc = 0;
+  private stats: [SideStats, SideStats] = [emptyStats(), emptyStats()];
+  private lastTouch: 0 | 1 = 0;
+  private markedKick = false;
 
   private ro: ResizeObserver | null = null;
   private unbind: Array<() => void> = [];
@@ -165,6 +182,7 @@ export class Engine {
     this.ready = [false, false];
     this.fingers.clear();
     this.bot = null;
+    this.stats = [emptyStats(), emptyStats()];
     if (mode === "versus") {
       this.phase = "ready";
       patchUi({
@@ -174,6 +192,7 @@ export class Engine {
         ready: [false, false],
         winner: null,
         lastScorer: null,
+        stats: this.cloneStats(),
       });
       this.audio.crowdReady();
     } else {
@@ -231,7 +250,7 @@ export class Engine {
   pause() {
     if (this.phase !== "playing") return;
     this.phase = "paused";
-    patchUi({ phase: "paused" });
+    patchUi({ phase: "paused", stats: this.cloneStats() });
     this.audio.crowdDuck();
   }
 
@@ -332,13 +351,14 @@ export class Engine {
     this.goalLock = 0;
     this.trail = [];
     this.padCool = [0, 0];
-    this.history = [];
-    this.replay = [];
-    this.sudden = false;
     if (resetScore) {
       this.clock = MATCH_TIME;
       this.pendingOver = false;
+      this.stats = [emptyStats(), emptyStats()];
     }
+    this.history = [];
+    this.replay = [];
+    this.markedKick = false;
     patchUi({
       phase: "countdown",
       mode: this.mode,
@@ -347,6 +367,7 @@ export class Engine {
       winner: null,
       sudden: this.sudden,
       clock: Math.ceil(this.clock),
+      stats: this.cloneStats(),
     });
     this.audio.whistle();
     this.audio.crowdPlay();
@@ -607,10 +628,16 @@ export class Engine {
 
     if (this.phase === "replay") {
       this.replayClock += dt;
-      const last = Math.max(1, this.replay.length - 1);
-      this.replayAt += dt * (last / 1.35);
-      if (this.replayAt >= last || this.replayClock > 1.8) {
+      const play = 1.2;
+      const hold = 0.4;
+      if (this.replayClock >= play + hold) {
         this.finishReplay();
+      } else if (this.replayClock <= play) {
+        const u = this.replayClock / play;
+        const eased = u ** 1.55;
+        this.replayAt = eased * Math.max(1, this.replay.length - 1);
+      } else {
+        this.replayAt = Math.max(0, this.replay.length - 1);
       }
     }
 
@@ -722,6 +749,8 @@ export class Engine {
       const rvy = b.vy - f.vy;
       const vn = rvx * nx + rvy * ny;
       if (vn < 0) {
+        const incoming = this.headingAt(f.side);
+        const corridor = this.inGoalCorridor();
         const e = REST;
         b.vx -= (1 + e) * vn * nx;
         b.vy -= (1 + e) * vn * ny;
@@ -734,6 +763,7 @@ export class Engine {
         capVec(b, MAX_BALL);
         const impact = Math.min(1, (Math.abs(vn) + kick) / 1200);
         if (this.phase === "playing") {
+          this.noteTouch(f.side, kick, impact, incoming, corridor);
           this.audio.kick(impact, (b.x / this.field.w) * 2 - 1);
           this.addTrauma(0.16 + impact * 0.38);
           if (impact > 0.38) this.hitstop = this.reducedMotion ? 0 : 0.045 + impact * 0.03;
@@ -777,6 +807,7 @@ export class Engine {
       b.vx = nx * Math.min(MAX_BALL, sp * 1.55 + 380);
       b.vy = ny * Math.min(MAX_BALL, sp * 1.55 + 380);
       this.padCool[i] = 1.7;
+      this.stats[this.lastTouch].boosts += 1;
       this.addTrauma(0.28);
       this.flash = Math.max(this.flash, 0.16);
       this.audio.kick(0.7, (b.x / this.field.w) * 2 - 1);
@@ -995,8 +1026,7 @@ export class Engine {
       this.score[scorer] >= this.target ||
       (this.timerOn && this.clock <= 0 && this.score[0] !== this.score[1]);
     this.pendingOver = over;
-    const canReplay = !this.reducedMotion && this.history.length > 8;
-    this.replay = canReplay ? this.history.slice() : [];
+    this.replay = this.buildReplay();
     this.replayAt = 0;
     this.replayClock = 0;
     this.phase = this.replay.length ? "replay" : over ? "over" : "goal";
@@ -1006,6 +1036,7 @@ export class Engine {
       lastScorer: scorer,
       winner: over && this.phase === "over" ? scorer : null,
       scorePulse: 1,
+      stats: this.cloneStats(),
     });
     if (this.phase === "over") {
       this.audio.win();
@@ -1028,7 +1059,7 @@ export class Engine {
     if (this.pendingOver && scorer !== null) {
       this.phase = "over";
       this.audio.win();
-      patchUi({ phase: "over", winner: scorer });
+      patchUi({ phase: "over", winner: scorer, stats: this.cloneStats() });
       return;
     }
     this.phase = "goal";
@@ -1045,7 +1076,7 @@ export class Engine {
       const winner = this.score[0] > this.score[1] ? 0 : 1;
       this.phase = "over";
       this.audio.win();
-      patchUi({ phase: "over", winner, clock: 0 });
+      patchUi({ phase: "over", winner, clock: 0, stats: this.cloneStats() });
       return;
     }
     this.sudden = true;
@@ -1055,22 +1086,88 @@ export class Engine {
 
   private pushHistory(dt: number) {
     this.histAcc += dt;
-    if (this.histAcc < 1 / 40) return;
+    if (this.histAcc < 1 / 48) return;
     this.histAcc = 0;
     this.history.push({
       bx: this.ball.x,
       by: this.ball.y,
       br: this.ball.rot,
+      bvx: this.ball.vx,
+      bvy: this.ball.vy,
+      kick: this.markedKick,
       fingers: this.allFingers().map((f) => ({
         x: f.x,
         y: f.y,
+        vx: f.vx,
+        vy: f.vy,
         r: f.r,
         side: f.side,
         bot: f.bot,
         id: f.id,
       })),
     });
-    if (this.history.length > 80) this.history.shift();
+    this.markedKick = false;
+    if (this.history.length > 90) this.history.shift();
+  }
+
+  private buildReplay(): Snap[] {
+    if (this.reducedMotion || this.history.length < 10) return [];
+    let start = Math.max(0, this.history.length - 36);
+    for (let i = this.history.length - 1; i >= 0; i--) {
+      if (this.history[i].kick) {
+        start = Math.max(0, i - 6);
+        break;
+      }
+    }
+    return this.history.slice(start);
+  }
+
+  private noteTouch(
+    side: 0 | 1,
+    kick: number,
+    impact: number,
+    incoming: boolean,
+    corridor: boolean,
+  ) {
+    const st = this.stats[side];
+    st.touches += 1;
+    this.lastTouch = side;
+    const outgoing = this.headingAt(side === 0 ? 1 : 0);
+    const spd = Math.hypot(this.ball.vx, this.ball.vy);
+    if (incoming && corridor && kick < 720) {
+      st.saves += 1;
+    } else if (kick > 160 || impact > 0.4) {
+      st.shots += 1;
+      this.markedKick = true;
+      if (spd > st.maxSpd) st.maxSpd = spd;
+      if (outgoing && corridor) st.onTarget += 1;
+    }
+  }
+
+  private headingAt(defender: 0 | 1) {
+    const b = this.ball;
+    const f = this.field;
+    if (f.axis === "tb") {
+      return defender === 1 ? b.vy < -70 : b.vy > 70;
+    }
+    return defender === 1 ? b.vx < -70 : b.vx > 70;
+  }
+
+  private inGoalCorridor() {
+    const b = this.ball;
+    const f = this.field;
+    const pad = 28;
+    if (f.axis === "tb") {
+      return b.x > f.midX - f.goalW / 2 - pad && b.x < f.midX + f.goalW / 2 + pad;
+    }
+    return b.y > f.midY - f.goalW / 2 - pad && b.y < f.midY + f.goalW / 2 + pad;
+  }
+
+  private cloneStats(): [SideStats, SideStats] {
+    return [
+      { ...this.stats[0] },
+      { ...this.stats[1] },
+    ];
   }
 
   private tickRain(dt: number) {
@@ -1239,28 +1336,23 @@ export class Engine {
 
     let ball = this.ball;
     let fingers = this.allFingers();
+    let cam: { cx: number; cy: number } | null = null;
+    let path: Array<{ x: number; y: number }> = [];
+    let liveZoom = zoom;
+
     if (this.phase === "replay" && this.replay.length) {
-      const i = Math.min(
-        this.replay.length - 1,
-        Math.max(0, Math.floor(this.replayAt) || 0),
-      );
-      const s = this.replay[i];
-      if (s) {
-        ball = { ...this.ball, x: s.bx, y: s.by, rot: s.br };
-        fingers = s.fingers.map((f) => ({
-          id: f.id,
-          side: f.side,
-          x: f.x,
-          y: f.y,
-          px: f.x,
-          py: f.y,
-          vx: 0,
-          vy: 0,
-          r: f.r,
-          born: 0,
-          bot: false,
-        }));
-      }
+      const pose = this.replayPose(this.replayAt);
+      ball = pose.ball;
+      fingers = pose.fingers;
+      path = this.replay.map((s) => ({ x: s.bx, y: s.by }));
+      const u = Math.min(1, this.replayClock / 1.2);
+      const hold = this.replayClock > 1.2;
+      liveZoom = (this.reducedMotion ? 1 : 1.1) + u * 0.18 + (hold ? 0.08 : 0);
+      const follow = 0.38 + u * 0.42;
+      cam = {
+        cx: this.field.w / 2 + (ball.x - this.field.w / 2) * follow,
+        cy: this.field.h / 2 + (ball.y - this.field.h / 2) * follow,
+      };
     }
 
     this.renderer.draw(
@@ -1281,7 +1373,7 @@ export class Engine {
           ...p,
           ready: (this.padCool[i] ?? 0) <= 0,
         })),
-        zoom,
+        zoom: liveZoom,
         flash: this.flash,
         score: this.score,
         target: this.target,
@@ -1289,12 +1381,49 @@ export class Engine {
         ballSkin: this.ballSkin,
         gloveSkin: this.gloveSkin,
         scorePulse: this.scorePulse,
+        cam,
+        path,
+        replay: this.phase === "replay",
       },
     );
     if (!this.booted) {
       this.booted = true;
       patchUi({ booted: true });
     }
+  }
+
+  private replayPose(at: number) {
+    const clips = this.replay;
+    const i = Math.min(clips.length - 1, Math.max(0, Math.floor(at)));
+    const a = clips[i];
+    const b = clips[Math.min(clips.length - 1, i + 1)] ?? a;
+    const t = Math.min(1, Math.max(0, at - i));
+    const ball: Ball = {
+      ...this.ball,
+      x: a.bx + (b.bx - a.bx) * t,
+      y: a.by + (b.by - a.by) * t,
+      vx: a.bvx + (b.bvx - a.bvx) * t,
+      vy: a.bvy + (b.bvy - a.bvy) * t,
+      rot: a.br + (b.br - a.br) * t,
+    };
+    const byId = new Map(b.fingers.map((f) => [f.id, f]));
+    const fingers: Finger[] = a.fingers.map((f) => {
+      const n = byId.get(f.id) ?? f;
+      return {
+        id: f.id,
+        side: f.side,
+        x: f.x + (n.x - f.x) * t,
+        y: f.y + (n.y - f.y) * t,
+        px: f.x,
+        py: f.y,
+        vx: f.vx + (n.vx - f.vx) * t,
+        vy: f.vy + (n.vy - f.vy) * t,
+        r: f.r,
+        born: 0,
+        bot: f.bot,
+      };
+    });
+    return { ball, fingers };
   }
 }
 

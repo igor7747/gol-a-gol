@@ -51,6 +51,9 @@ export interface DrawExtras {
   ballSkin: BallSkin;
   gloveSkin: GloveSkin;
   scorePulse: number;
+  cam: { cx: number; cy: number } | null;
+  path: Array<{ x: number; y: number }>;
+  replay: boolean;
 }
 
 export class Renderer {
@@ -76,9 +79,15 @@ export class Renderer {
     ctx.clearRect(0, 0, w, h);
 
     ctx.save();
-    ctx.translate(w / 2 + shakeX, h / 2 + shakeY);
-    ctx.scale(extras.zoom, extras.zoom);
-    ctx.translate(-w / 2, -h / 2);
+    if (extras.cam) {
+      ctx.translate(w / 2 + shakeX, h / 2 + shakeY);
+      ctx.scale(extras.zoom, extras.zoom);
+      ctx.translate(-extras.cam.cx, -extras.cam.cy);
+    } else {
+      ctx.translate(w / 2 + shakeX, h / 2 + shakeY);
+      ctx.scale(extras.zoom, extras.zoom);
+      ctx.translate(-w / 2, -h / 2);
+    }
 
     this.ensurePitch(field, extras.theme);
     if (this.pitch) ctx.drawImage(this.pitch, 0, 0, w, h);
@@ -86,6 +95,7 @@ export class Renderer {
     this.drawPads(ctx, extras.pads, time);
     this.drawGoals(ctx, field);
     this.drawScoreboard(ctx, field, extras.score, extras.scorePulse);
+    if (extras.path.length > 1) this.drawShotPath(ctx, extras.path, extras.scorePulse);
     if (extras.theme === "rain") this.drawRain(ctx, field, time);
     this.drawParticles(ctx, particles, "dust");
     this.drawParticles(ctx, particles, "boost");
@@ -103,6 +113,7 @@ export class Renderer {
     ctx.restore();
 
     this.drawVignette(ctx, w, h);
+    if (extras.replay) this.drawReplayTag(ctx, field);
     if (extras.flash > 0.01) {
       ctx.fillStyle = `rgba(243,241,234,${Math.min(0.42, extras.flash)})`;
       ctx.fillRect(0, 0, w, h);
@@ -550,6 +561,55 @@ export class Renderer {
       ctx.rotate(Math.PI);
       ctx.fillText("BRASA", 0, 0);
       ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  private drawShotPath(
+    ctx: CanvasRenderingContext2D,
+    path: Array<{ x: number; y: number }>,
+    pulse: number,
+  ) {
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (let i = 1; i < path.length; i++) {
+      const a = i / path.length;
+      ctx.strokeStyle = `rgba(243,241,234,${0.08 + a * 0.45})`;
+      ctx.lineWidth = 1.4 + a * 3.2 + pulse * 1.5;
+      ctx.beginPath();
+      ctx.moveTo(path[i - 1].x, path[i - 1].y);
+      ctx.lineTo(path[i].x, path[i].y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private drawReplayTag(ctx: CanvasRenderingContext2D, f: Field) {
+    const size = Math.max(13, Math.min(f.pw, f.ph) * 0.045);
+    ctx.save();
+    ctx.fillStyle = "rgba(243,241,234,0.72)";
+    ctx.font = `600 ${size}px Outfit, system-ui, sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const label = "REPLAY";
+    if (f.axis === "lr") {
+      ctx.save();
+      ctx.translate(f.w * 0.5, 22);
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+      ctx.save();
+      ctx.translate(f.w * 0.5, f.h - 22);
+      ctx.rotate(Math.PI);
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+    } else {
+      ctx.save();
+      ctx.translate(f.w * 0.5, 26);
+      ctx.rotate(Math.PI);
+      ctx.fillText(label, 0, 0);
+      ctx.restore();
+      ctx.fillText(label, f.w * 0.5, f.h - 26);
     }
     ctx.restore();
   }

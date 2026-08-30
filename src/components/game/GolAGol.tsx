@@ -28,6 +28,7 @@ import type {
   GoalSize,
   Mode,
   PitchTheme,
+  SideStats,
 } from "@/game/types";
 import { cn } from "@/lib/utils";
 
@@ -155,15 +156,10 @@ export function GolAGol() {
         />
       )}
 
-      {ui.phase === "replay" && (
-        <div className="overlay overlay-center pointer-none">
-          <p className="replay-tag">Replay</p>
-        </div>
-      )}
-
       {ui.phase === "paused" && (
         <PauseMenu
           muted={ui.muted}
+          stats={ui.stats}
           onResume={() => eng()?.resume()}
           onMenu={() => eng()?.toMenu()}
           onMute={() => eng()?.setMuted(!ui.muted)}
@@ -180,6 +176,7 @@ export function GolAGol() {
           winner={ui.winner}
           score={ui.score}
           mode={ui.mode}
+          stats={ui.stats}
           onRematch={() => eng()?.rematch()}
           onMenu={() => eng()?.toMenu()}
         />
@@ -557,11 +554,13 @@ function Hud({
 
 function PauseMenu({
   muted,
+  stats,
   onResume,
   onMenu,
   onMute,
 }: {
   muted: boolean;
+  stats: [SideStats, SideStats];
   onResume: () => void;
   onMenu: () => void;
   onMute: () => void;
@@ -570,6 +569,7 @@ function PauseMenu({
     <div className="overlay overlay-center">
       <div className="panel">
         <h2 className="panel-title">Pausa</h2>
+        <StatTable gelo={stats[0]} brasa={stats[1]} />
         <div className="panel-actions">
           <Button size="lg" onClick={onResume}>
             <Play />
@@ -611,6 +611,7 @@ function Over({
   winner,
   score,
   mode,
+  stats,
   onRematch,
   onMenu,
 }: {
@@ -618,6 +619,7 @@ function Over({
   winner: 0 | 1;
   score: [number, number];
   mode: Mode;
+  stats: [SideStats, SideStats];
   onRematch: () => void;
   onMenu: () => void;
 }) {
@@ -638,6 +640,7 @@ function Over({
           <p className="over-score">
             {score[1]} – {score[0]}
           </p>
+          <StatTable gelo={stats[0]} brasa={stats[1]} compact />
         </div>
       </div>
       <div className="over-side over-gelo">
@@ -647,6 +650,7 @@ function Over({
           <p className="over-score">
             {score[0]} – {score[1]}
           </p>
+          <StatTable gelo={stats[0]} brasa={stats[1]} compact />
           <div className="over-actions">
             <Button size="lg" onClick={onRematch}>
               <RotateCcw />
@@ -670,6 +674,46 @@ function Loader() {
       <h2 className="loader-title">Montando o campo</h2>
       <p className="loader-note">Gramado, gols e torcida</p>
     </div>
+  );
+}
+
+function StatTable({
+  gelo,
+  brasa,
+  compact = false,
+}: {
+  gelo: SideStats;
+  brasa: SideStats;
+  compact?: boolean;
+}) {
+  const spd = (n: number) => (n < 40 ? "—" : `${Math.round(n / 8)}`);
+  const rows: Array<[string, string, string]> = [
+    ["Chutes", String(brasa.shots), String(gelo.shots)],
+    ["A gol", String(brasa.onTarget), String(gelo.onTarget)],
+    ["Defesas", String(brasa.saves), String(gelo.saves)],
+    ["Boosts", String(brasa.boosts), String(gelo.boosts)],
+    ["Toques", String(brasa.touches), String(gelo.touches)],
+    ["Chute máx.", spd(brasa.maxSpd), spd(gelo.maxSpd)],
+  ];
+  return (
+    <table className={cn("stats", compact && "stats-compact")}>
+      <thead>
+        <tr>
+          <th />
+          <th className="stats-brasa">Brasa</th>
+          <th className="stats-gelo">Gelo</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(([label, a, b]) => (
+          <tr key={label}>
+            <td>{label}</td>
+            <td>{a}</td>
+            <td>{b}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
   );
 }
 

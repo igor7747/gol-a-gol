@@ -625,6 +625,44 @@
   margin-top: 0.85rem;
 }
 
+.stats {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  margin: 0.35rem 0 0.15rem;
+}
+
+.stats th,
+.stats td {
+  padding: 0.22rem 0.35rem;
+  text-align: right;
+  font-weight: 600;
+}
+
+.stats th:first-child,
+.stats td:first-child {
+  text-align: left;
+  color: var(--color-muted);
+  font-weight: 500;
+}
+
+.stats-brasa {
+  color: var(--color-brasa);
+}
+
+.stats-gelo {
+  color: var(--color-gelo);
+}
+
+.stats-compact {
+  font-size: 0.7rem;
+}
+
+.layout-tb .over-brasa .stats {
+  transform: rotate(180deg);
+}
+
 @media (prefers-reduced-motion: reduce) {
   .chip,
   button {

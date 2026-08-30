@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { emptyStats } from "./types";
 import type {
   Axis,
   BallSkin,
@@ -8,6 +9,7 @@ import type {
   Mode,
   Phase,
   PitchTheme,
+  SideStats,
 } from "./types";
 
 export interface GameUi {
@@ -34,6 +36,7 @@ export interface GameUi {
   gloveSkin: GloveSkin;
   tutorialDone: boolean;
   scorePulse: number;
+  stats: [SideStats, SideStats];
 }
 
 export interface GameUiApi extends GameUi {
@@ -64,6 +67,7 @@ export const useGameUi = create<GameUiApi>((set) => ({
   gloveSkin: "ring",
   tutorialDone: false,
   scorePulse: 0,
+  stats: [emptyStats(), emptyStats()],
   patch: (partial) => set(partial),
 }));
 
