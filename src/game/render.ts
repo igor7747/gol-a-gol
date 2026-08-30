@@ -433,25 +433,45 @@ export class Renderer {
       f.axis === "lr"
         ? [
             {
-              x: f.midX - bh * 0.7,
+              x: f.x + f.pw * 0.22,
               y: f.y + inset + bw / 2,
               rot: -Math.PI / 2,
             },
             {
-              x: f.midX + bh * 0.7,
+              x: f.x + f.pw * 0.22,
+              y: f.y + f.ph - inset - bw / 2,
+              rot: -Math.PI / 2,
+            },
+            {
+              x: f.x + f.pw * 0.78,
               y: f.y + inset + bw / 2,
+              rot: Math.PI / 2,
+            },
+            {
+              x: f.x + f.pw * 0.78,
+              y: f.y + f.ph - inset - bw / 2,
               rot: Math.PI / 2,
             },
           ]
         : [
             {
               x: f.x + inset + bw / 2,
-              y: f.midY - bh * 0.7,
+              y: f.y + f.ph * 0.22,
+              rot: Math.PI,
+            },
+            {
+              x: f.x + f.pw - inset - bw / 2,
+              y: f.y + f.ph * 0.22,
               rot: Math.PI,
             },
             {
               x: f.x + inset + bw / 2,
-              y: f.midY + bh * 0.7,
+              y: f.y + f.ph * 0.78,
+              rot: 0,
+            },
+            {
+              x: f.x + f.pw - inset - bw / 2,
+              y: f.y + f.ph * 0.78,
               rot: 0,
             },
           ];
