@@ -148,13 +148,13 @@ export function Menu({
             <Zap />
             Jogar
           </Button>
-          <Button variant="outline" size="lg" onClick={() => setSheet(true)}>
-            <SlidersHorizontal />
-            Ajustes da partida
-          </Button>
         </div>
 
         <div className="menu-foot">
+          <button type="button" className="icon-quiet" onClick={() => setSheet(true)}>
+            <SlidersHorizontal />
+            Ajustes
+          </button>
           <button type="button" className="icon-quiet" onClick={onMute}>
             {muted ? <VolumeX /> : <Volume2 />}
             {muted ? "Som off" : "Som on"}

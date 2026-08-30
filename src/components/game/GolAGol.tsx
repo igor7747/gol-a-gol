@@ -17,7 +17,6 @@ import { cn } from "@/lib/utils";
 export function GolAGol({ start }: { start?: Mode }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const engineRef = useRef<Engine | null>(null);
-  const launched = useRef(false);
   const ui = useGameUi();
   const [mode, setMode] = useState<Mode>(start ?? "versus");
   const [showLoader, setShowLoader] = useState(true);
@@ -49,21 +48,18 @@ export function GolAGol({ start }: { start?: Mode }) {
   const eng = () => engineRef.current;
 
   useEffect(() => {
+    if (start) setMode(start);
+  }, [start]);
+
+  useEffect(() => {
     if (!showLoader && ui.phase === "menu" && !ui.tutorialDone) {
       setTutorial(true);
     }
   }, [showLoader, ui.phase, ui.tutorialDone]);
 
   const launch = (m: Mode) => {
-    launched.current = true;
     engineRef.current?.setMode(m);
   };
-
-  useEffect(() => {
-    if (showLoader || tutorial || ui.phase !== "menu") return;
-    if (!start || launched.current) return;
-    launch(start);
-  }, [showLoader, tutorial, start, ui.phase]);
 
   return (
     <div
@@ -83,7 +79,6 @@ export function GolAGol({ start }: { start?: Mode }) {
           onDone={() => {
             setTutorial(false);
             eng()?.finishTutorial();
-            if (start) launch(start);
           }}
         />
       )}
@@ -114,7 +109,7 @@ export function GolAGol({ start }: { start?: Mode }) {
         />
       )}
 
-      {ui.phase === "ready" && (
+      {ui.phase === "ready" && !tutorial && !showLoader && (
         <Ready
           axis={ui.axis}
           ready={ui.ready}
