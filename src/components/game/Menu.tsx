@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
+  ArrowLeft,
   Clock,
   CloudRain,
   Cpu,
@@ -26,7 +28,6 @@ import { cn } from "@/lib/utils";
 
 export function Menu({
   mode,
-  options,
   muted,
   target,
   goalSize,
@@ -37,7 +38,6 @@ export function Menu({
   gloveSkin,
   camFeel,
   onMode,
-  onOptions,
   onTarget,
   onGoalSize,
   onBotLevel,
@@ -50,7 +50,6 @@ export function Menu({
   onMute,
 }: {
   mode: Mode;
-  options: boolean;
   muted: boolean;
   target: number;
   goalSize: GoalSize;
@@ -61,7 +60,6 @@ export function Menu({
   gloveSkin: GloveSkin;
   camFeel: CamFeel;
   onMode: (m: Mode) => void;
-  onOptions: () => void;
   onTarget: (n: number) => void;
   onGoalSize: (s: GoalSize) => void;
   onBotLevel: (l: BotLevel) => void;
@@ -73,22 +71,43 @@ export function Menu({
   onPlay: () => void;
   onMute: () => void;
 }) {
-  const summary = [
-    goalSize === "s" ? "gol pequeno" : goalSize === "l" ? "gol grande" : "gol médio",
-    timerOn ? "2 min" : `até ${target}`,
-    theme === "grass" ? "grama" : theme === "rain" ? "chuva" : "noite",
-    camFeel,
-  ].join(" · ");
+  const [sheet, setSheet] = useState(false);
+
+  if (sheet) {
+    return (
+      <Ajustes
+        mode={mode}
+        target={target}
+        goalSize={goalSize}
+        botLevel={botLevel}
+        timerOn={timerOn}
+        theme={theme}
+        ballSkin={ballSkin}
+        gloveSkin={gloveSkin}
+        camFeel={camFeel}
+        onTarget={onTarget}
+        onGoalSize={onGoalSize}
+        onBotLevel={onBotLevel}
+        onTimer={onTimer}
+        onTheme={onTheme}
+        onBall={onBall}
+        onGlove={onGlove}
+        onCamFeel={onCamFeel}
+        onBack={() => setSheet(false)}
+      />
+    );
+  }
 
   return (
     <div className="overlay overlay-menu">
       <div className="menu-inner">
-        <div className="menu-hero">
-          <img src="/art/hero.jpg" alt="" />
-        </div>
-        <img src="/art/logo.jpg" alt="" className="brand-logo brand-logo-sm" />
-        <p className="menu-kicker">Dois jogadores · um celular</p>
-        <h1 className="menu-title">Gol a Gol</h1>
+        <header className="menu-head">
+          <img src="/art/logo.jpg" alt="" className="brand-logo brand-logo-sm" />
+          <div>
+            <p className="menu-kicker">Dois jogadores · um celular</p>
+            <h1 className="menu-title">Gol a Gol</h1>
+          </div>
+        </header>
 
         <div className="mode-pick">
           <button
@@ -110,59 +129,30 @@ export function Menu({
         </div>
 
         {mode === "bot" && (
-          <div className="chip-row">
-            {(
-              [
-                ["easy", "Fácil"],
-                ["normal", "Normal"],
-                ["hard", "Difícil"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                className={cn("chip", botLevel === id && "chip-on")}
-                onClick={() => onBotLevel(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <FeelRow
+            label="Nível do bot"
+            value={botLevel}
+            options={[
+              ["easy", "Fácil"],
+              ["normal", "Normal"],
+              ["hard", "Difícil"],
+            ]}
+            onPick={onBotLevel}
+          />
         )}
+
+        <FeelPick value={camFeel} onPick={onCamFeel} />
 
         <div className="menu-actions">
           <Button variant="default" size="xl" onClick={onPlay}>
             <Zap />
             Jogar
           </Button>
+          <Button variant="outline" size="lg" onClick={() => setSheet(true)}>
+            <SlidersHorizontal />
+            Ajustes da partida
+          </Button>
         </div>
-
-        <button type="button" className="icon-quiet" onClick={onOptions}>
-          <SlidersHorizontal />
-          {options ? "Fechar opções" : summary}
-        </button>
-
-        {options && (
-          <Options
-            mode={mode}
-            target={target}
-            goalSize={goalSize}
-            botLevel={botLevel}
-            timerOn={timerOn}
-            theme={theme}
-            ballSkin={ballSkin}
-            gloveSkin={gloveSkin}
-            camFeel={camFeel}
-            onTarget={onTarget}
-            onGoalSize={onGoalSize}
-            onBotLevel={onBotLevel}
-            onTimer={onTimer}
-            onTheme={onTheme}
-            onBall={onBall}
-            onGlove={onGlove}
-            onCamFeel={onCamFeel}
-          />
-        )}
 
         <div className="menu-foot">
           <button type="button" className="icon-quiet" onClick={onMute}>
@@ -178,7 +168,44 @@ export function Menu({
   );
 }
 
-function Options({
+export function FeelPick({
+  value,
+  onPick,
+}: {
+  value: CamFeel;
+  onPick: (f: CamFeel) => void;
+}) {
+  return (
+    <div className="feel-block">
+      <span className="menu-label">Tremor do campo</span>
+      <div className="feel-pick">
+        {(
+          [
+            ["leve", "Leve", 1],
+            ["medio", "Médio", 2],
+            ["forte", "Forte", 3],
+          ] as const
+        ).map(([id, label, n]) => (
+          <button
+            key={id}
+            type="button"
+            className={cn("feel-card", value === id && "is-on")}
+            onClick={() => onPick(id)}
+          >
+            <span className="feel-bars" aria-hidden="true">
+              {Array.from({ length: 3 }, (_, i) => (
+                <i key={i} className={cn(i < n && "is-lit")} />
+              ))}
+            </span>
+            <span>{label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Ajustes({
   mode,
   target,
   goalSize,
@@ -196,6 +223,7 @@ function Options({
   onBall,
   onGlove,
   onCamFeel,
+  onBack,
 }: {
   mode: Mode;
   target: number;
@@ -214,189 +242,228 @@ function Options({
   onBall: (s: BallSkin) => void;
   onGlove: (s: GloveSkin) => void;
   onCamFeel: (f: CamFeel) => void;
+  onBack: () => void;
+}) {
+  const [tab, setTab] = useState<"partida" | "visual">("partida");
+
+  return (
+    <div className="overlay overlay-menu">
+      <div className="menu-inner">
+        <button type="button" className="icon-quiet setup-back" onClick={onBack}>
+          <ArrowLeft />
+          Voltar
+        </button>
+        <h2 className="setup-title">Ajustes</h2>
+
+        <div className="sheet-tabs">
+          <button
+            type="button"
+            className={cn("chip", tab === "partida" && "chip-on")}
+            onClick={() => setTab("partida")}
+          >
+            Partida
+          </button>
+          <button
+            type="button"
+            className={cn("chip", tab === "visual" && "chip-on")}
+            onClick={() => setTab("visual")}
+          >
+            Visual
+          </button>
+        </div>
+
+        {tab === "partida" && (
+          <div className="menu-options">
+            <FeelPick value={camFeel} onPick={onCamFeel} />
+
+            <div className="setup-block">
+              <span className="menu-label">
+                <Goal /> Tamanho do gol
+              </span>
+              <div className="goal-pick">
+                {(
+                  [
+                    ["s", "Pequeno"],
+                    ["m", "Médio"],
+                    ["l", "Grande"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={cn("goal-card", goalSize === id && "is-on")}
+                    onClick={() => onGoalSize(id)}
+                  >
+                    <span className={cn("goal-mouth", `sz-${id}`)} />
+                    <span>{label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="menu-row">
+              <span className="menu-label">Primeiro a</span>
+              <div className="chip-row">
+                {[3, 5, 7].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className={cn("chip", n === target && "chip-on")}
+                    onClick={() => onTarget(n)}
+                  >
+                    {n} gols
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="menu-row">
+              <span className="menu-label">
+                <Clock /> Relógio
+              </span>
+              <div className="chip-row">
+                <button
+                  type="button"
+                  className={cn("chip", !timerOn && "chip-on")}
+                  onClick={() => onTimer(false)}
+                >
+                  Só gols
+                </button>
+                <button
+                  type="button"
+                  className={cn("chip", timerOn && "chip-on")}
+                  onClick={() => onTimer(true)}
+                >
+                  2 minutos
+                </button>
+              </div>
+            </div>
+
+            {mode === "bot" && (
+              <FeelRow
+                label="Nível do bot"
+                value={botLevel}
+                options={[
+                  ["easy", "Fácil"],
+                  ["normal", "Normal"],
+                  ["hard", "Difícil"],
+                ]}
+                onPick={onBotLevel}
+              />
+            )}
+          </div>
+        )}
+
+        {tab === "visual" && (
+          <div className="menu-options">
+            <div className="setup-block">
+              <span className="menu-label">Campo</span>
+              <div className="chip-row">
+                <button
+                  type="button"
+                  className={cn("chip", theme === "night" && "chip-on")}
+                  onClick={() => onTheme("night")}
+                >
+                  <Moon /> Noite
+                </button>
+                <button
+                  type="button"
+                  className={cn("chip", theme === "grass" && "chip-on")}
+                  onClick={() => onTheme("grass")}
+                >
+                  <Sun /> Grama
+                </button>
+                <button
+                  type="button"
+                  className={cn("chip", theme === "rain" && "chip-on")}
+                  onClick={() => onTheme("rain")}
+                >
+                  <CloudRain /> Chuva
+                </button>
+              </div>
+            </div>
+
+            <div className="menu-row">
+              <span className="menu-label">Bola</span>
+              <div className="chip-row">
+                {(
+                  [
+                    ["classic", "Clássica"],
+                    ["fire", "Fogo"],
+                    ["ice", "Gelo"],
+                    ["smile", "Sorriso"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={cn("chip", ballSkin === id && "chip-on")}
+                    onClick={() => onBall(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="menu-row">
+              <span className="menu-label">Luvas</span>
+              <div className="chip-row">
+                {(
+                  [
+                    ["ring", "Anel"],
+                    ["stripe", "Faixa"],
+                    ["solid", "Cheia"],
+                    ["star", "Estrela"],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    className={cn("chip", gloveSkin === id && "chip-on")}
+                    onClick={() => onGlove(id)}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <Button size="xl" onClick={onBack}>
+          Pronto
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function FeelRow<T extends string>({
+  label,
+  value,
+  options,
+  onPick,
+}: {
+  label: string;
+  value: T;
+  options: ReadonlyArray<readonly [T, string]>;
+  onPick: (v: T) => void;
 }) {
   return (
-    <div className="menu-options">
-      <div className="setup-block">
-        <span className="menu-label">
-          <Goal /> Tamanho do gol
-        </span>
-        <div className="goal-pick">
-          {(
-            [
-              ["s", "Pequeno"],
-              ["m", "Médio"],
-              ["l", "Grande"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={cn("goal-card", goalSize === id && "is-on")}
-              onClick={() => onGoalSize(id)}
-            >
-              <span className={cn("goal-mouth", `sz-${id}`)} />
-              <span>{label}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="menu-row">
-        <span className="menu-label">Primeiro a</span>
-        <div className="chip-row">
-          {[3, 5, 7].map((n) => (
-            <button
-              key={n}
-              type="button"
-              className={cn("chip", n === target && "chip-on")}
-              onClick={() => onTarget(n)}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="menu-row">
-        <span className="menu-label">
-          <Clock /> Relógio
-        </span>
-        <div className="chip-row">
+    <div className="menu-row">
+      <span className="menu-label">{label}</span>
+      <div className="chip-row">
+        {options.map(([id, name]) => (
           <button
+            key={id}
             type="button"
-            className={cn("chip", !timerOn && "chip-on")}
-            onClick={() => onTimer(false)}
+            className={cn("chip", value === id && "chip-on")}
+            onClick={() => onPick(id)}
           >
-            Só gols
+            {name}
           </button>
-          <button
-            type="button"
-            className={cn("chip", timerOn && "chip-on")}
-            onClick={() => onTimer(true)}
-          >
-            2 minutos
-          </button>
-        </div>
-      </div>
-
-      {mode === "bot" && (
-        <div className="menu-row">
-          <span className="menu-label">Bot</span>
-          <div className="chip-row">
-            {(
-              [
-                ["easy", "Fácil"],
-                ["normal", "Normal"],
-                ["hard", "Difícil"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                className={cn("chip", botLevel === id && "chip-on")}
-                onClick={() => onBotLevel(id)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div className="menu-row">
-        <span className="menu-label">Campo se mexe</span>
-        <div className="chip-row">
-          {(
-            [
-              ["leve", "Leve"],
-              ["medio", "Médio"],
-              ["forte", "Forte"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={cn("chip", camFeel === id && "chip-on")}
-              onClick={() => onCamFeel(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="setup-block">
-        <span className="menu-label">Campo</span>
-        <div className="chip-row">
-          <button
-            type="button"
-            className={cn("chip", theme === "night" && "chip-on")}
-            onClick={() => onTheme("night")}
-          >
-            <Moon /> Noite
-          </button>
-          <button
-            type="button"
-            className={cn("chip", theme === "grass" && "chip-on")}
-            onClick={() => onTheme("grass")}
-          >
-            <Sun /> Grama
-          </button>
-          <button
-            type="button"
-            className={cn("chip", theme === "rain" && "chip-on")}
-            onClick={() => onTheme("rain")}
-          >
-            <CloudRain /> Chuva
-          </button>
-        </div>
-      </div>
-
-      <div className="menu-row">
-        <span className="menu-label">Bola</span>
-        <div className="chip-row">
-          {(
-            [
-              ["classic", "Clássica"],
-              ["fire", "Fogo"],
-              ["ice", "Gelo"],
-              ["smile", "Sorriso"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={cn("chip", ballSkin === id && "chip-on")}
-              onClick={() => onBall(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div className="menu-row">
-        <span className="menu-label">Luvas</span>
-        <div className="chip-row">
-          {(
-            [
-              ["ring", "Anel"],
-              ["stripe", "Faixa"],
-              ["solid", "Cheia"],
-              ["star", "Estrela"],
-            ] as const
-          ).map(([id, label]) => (
-            <button
-              key={id}
-              type="button"
-              className={cn("chip", gloveSkin === id && "chip-on")}
-              onClick={() => onGlove(id)}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        ))}
       </div>
     </div>
   );

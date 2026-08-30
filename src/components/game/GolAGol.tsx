@@ -8,10 +8,10 @@ import {
   VolumeX,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Menu } from "@/components/game/Menu";
+import { Menu, FeelPick } from "@/components/game/Menu";
 import { Engine } from "@/game/engine";
 import { useGameUi } from "@/game/store";
-import type { Axis, Mode, SideStats } from "@/game/types";
+import type { Axis, CamFeel, Mode, SideStats } from "@/game/types";
 import { cn } from "@/lib/utils";
 
 export function GolAGol({ start }: { start?: Mode }) {
@@ -20,7 +20,6 @@ export function GolAGol({ start }: { start?: Mode }) {
   const launched = useRef(false);
   const ui = useGameUi();
   const [mode, setMode] = useState<Mode>(start ?? "versus");
-  const [options, setOptions] = useState(false);
   const [showLoader, setShowLoader] = useState(true);
   const [tutorial, setTutorial] = useState(false);
 
@@ -92,7 +91,6 @@ export function GolAGol({ start }: { start?: Mode }) {
       {ui.phase === "menu" && !tutorial && !showLoader && (
         <Menu
           mode={mode}
-          options={options}
           muted={ui.muted}
           target={ui.target}
           goalSize={ui.goalSize}
@@ -103,7 +101,6 @@ export function GolAGol({ start }: { start?: Mode }) {
           gloveSkin={ui.gloveSkin}
           camFeel={ui.camFeel}
           onMode={setMode}
-          onOptions={() => setOptions((v) => !v)}
           onTarget={(n) => eng()?.setTarget(n)}
           onGoalSize={(s) => eng()?.setGoalSize(s)}
           onBotLevel={(l) => eng()?.setBotLevel(l)}
@@ -148,10 +145,12 @@ export function GolAGol({ start }: { start?: Mode }) {
       {ui.phase === "paused" && (
         <PauseMenu
           muted={ui.muted}
+          camFeel={ui.camFeel}
           stats={ui.stats}
           onResume={() => eng()?.resume()}
           onMenu={() => eng()?.toMenu()}
           onMute={() => eng()?.setMuted(!ui.muted)}
+          onCamFeel={(f) => eng()?.setCamFeel(f)}
         />
       )}
 
@@ -273,21 +272,26 @@ function Hud({
 
 function PauseMenu({
   muted,
+  camFeel,
   stats,
   onResume,
   onMenu,
   onMute,
+  onCamFeel,
 }: {
   muted: boolean;
+  camFeel: CamFeel;
   stats: [SideStats, SideStats];
   onResume: () => void;
   onMenu: () => void;
   onMute: () => void;
+  onCamFeel: (f: CamFeel) => void;
 }) {
   return (
     <div className="overlay overlay-center">
       <div className="panel">
         <h2 className="panel-title">Pausa</h2>
+        <FeelPick value={camFeel} onPick={onCamFeel} />
         <StatTable gelo={stats[0]} brasa={stats[1]} />
         <div className="panel-actions">
           <Button size="lg" onClick={onResume}>

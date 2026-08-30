@@ -114,6 +114,90 @@
   font-weight: 500;
 }
 
+.menu-head {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.menu-head .menu-title {
+  font-size: clamp(2.4rem, 11vw, 3.4rem);
+  line-height: 0.86;
+}
+
+.feel-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.feel-pick {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.45rem;
+}
+
+.feel-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  min-height: 4.4rem;
+  padding: 0.55rem 0.3rem 0.55rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border);
+  background: rgb(14 28 20 / 0.65);
+  color: var(--color-muted);
+  font-family: var(--font-sans);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.feel-card.is-on {
+  background: var(--color-fg);
+  color: var(--color-bg);
+  border-color: var(--color-fg);
+}
+
+.feel-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.18rem;
+  height: 1.15rem;
+}
+
+.feel-bars i {
+  display: block;
+  width: 0.32rem;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.22;
+}
+
+.feel-bars i:nth-child(1) {
+  height: 40%;
+}
+.feel-bars i:nth-child(2) {
+  height: 68%;
+}
+.feel-bars i:nth-child(3) {
+  height: 100%;
+}
+
+.feel-bars i.is-lit {
+  opacity: 1;
+}
+
+.sheet-tabs {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.sheet-tabs .chip {
+  flex: 1;
+}
+
 .menu-title {
   margin: 0;
   font-family: var(--font-display);
