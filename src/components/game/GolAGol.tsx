@@ -94,7 +94,6 @@ export function GolAGol() {
           axis={ui.axis}
           target={ui.target}
           paused={ui.phase === "paused"}
-          fingers={ui.fingers}
           onPause={() =>
             ui.phase === "paused" ? eng()?.resume() : eng()?.pause()
           }
@@ -326,21 +325,15 @@ function Hud({
   axis,
   target,
   paused,
-  fingers,
   onPause,
 }: {
   axis: Axis;
   target: number;
   paused: boolean;
-  fingers: [number, number];
   onPause: () => void;
 }) {
   return (
     <div className={cn("hud pointer-none", `layout-${axis}`)}>
-      <div className="hud-end hud-brasa">
-        <span className="hud-name">Brasa</span>
-        <Dots n={fingers[1]} color="brasa" />
-      </div>
       <button
         type="button"
         className="hud-pause pointer-auto"
@@ -350,21 +343,7 @@ function Hud({
         {paused ? <Play /> : <Pause />}
         <span>até {target}</span>
       </button>
-      <div className="hud-end hud-gelo">
-        <span className="hud-name">Gelo</span>
-        <Dots n={fingers[0]} color="gelo" />
-      </div>
     </div>
-  );
-}
-
-function Dots({ n, color }: { n: number; color: "gelo" | "brasa" }) {
-  return (
-    <span className={cn("hud-dots", color)}>
-      {Array.from({ length: 3 }, (_, i) => (
-        <i key={i} className={i < n ? "on" : undefined} />
-      ))}
-    </span>
   );
 }
 

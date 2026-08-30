@@ -425,56 +425,18 @@ export class Renderer {
     score: [number, number],
   ) {
     const short = Math.min(f.pw, f.ph);
-    const bw = Math.max(78, Math.min(126, short * 0.3));
-    const bh = Math.max(30, Math.min(42, short * 0.095));
-    const inset = 10;
+    const room =
+      f.axis === "tb"
+        ? (f.pw - f.goalW) / 2
+        : (f.ph - f.goalW) / 2;
+    const bw = Math.max(48, Math.min(room - 10, short * 0.2));
+    const bh = Math.max(26, Math.min(36, bw * 0.42));
+    const pad = Math.max(6, Math.min(12, room * 0.12));
 
     const faces =
       f.axis === "lr"
-        ? [
-            {
-              x: f.x + f.pw * 0.22,
-              y: f.y + inset + bw / 2,
-              rot: -Math.PI / 2,
-            },
-            {
-              x: f.x + f.pw * 0.22,
-              y: f.y + f.ph - inset - bw / 2,
-              rot: -Math.PI / 2,
-            },
-            {
-              x: f.x + f.pw * 0.78,
-              y: f.y + inset + bw / 2,
-              rot: Math.PI / 2,
-            },
-            {
-              x: f.x + f.pw * 0.78,
-              y: f.y + f.ph - inset - bw / 2,
-              rot: Math.PI / 2,
-            },
-          ]
-        : [
-            {
-              x: f.x + inset + bw / 2,
-              y: f.y + f.ph * 0.22,
-              rot: Math.PI,
-            },
-            {
-              x: f.x + f.pw - inset - bw / 2,
-              y: f.y + f.ph * 0.22,
-              rot: Math.PI,
-            },
-            {
-              x: f.x + inset + bw / 2,
-              y: f.y + f.ph * 0.78,
-              rot: 0,
-            },
-            {
-              x: f.x + f.pw - inset - bw / 2,
-              y: f.y + f.ph * 0.78,
-              rot: 0,
-            },
-          ];
+        ? this.goalFlankFacesLr(f, bw, bh, pad)
+        : this.goalFlankFacesTb(f, bw, bh, pad);
 
     for (const face of faces) {
       ctx.save();
@@ -483,6 +445,46 @@ export class Renderer {
       this.paintBoard(ctx, bw, bh, score);
       ctx.restore();
     }
+  }
+
+  private goalFlankFacesTb(
+    f: Field,
+    bw: number,
+    bh: number,
+    pad: number,
+  ) {
+    const gl = f.midX - f.goalW / 2;
+    const gr = f.midX + f.goalW / 2;
+    const leftX = gl - pad - bw / 2;
+    const rightX = gr + pad + bw / 2;
+    const topY = f.y + pad + bh / 2 + 2;
+    const botY = f.y + f.ph - pad - bh / 2 - 2;
+    return [
+      { x: leftX, y: topY, rot: Math.PI },
+      { x: rightX, y: topY, rot: Math.PI },
+      { x: leftX, y: botY, rot: 0 },
+      { x: rightX, y: botY, rot: 0 },
+    ];
+  }
+
+  private goalFlankFacesLr(
+    f: Field,
+    bw: number,
+    bh: number,
+    pad: number,
+  ) {
+    const gt = f.midY - f.goalW / 2;
+    const gb = f.midY + f.goalW / 2;
+    const topY = gt - pad - bw / 2;
+    const botY = gb + pad + bw / 2;
+    const leftX = f.x + pad + bh / 2;
+    const rightX = f.x + f.pw - pad - bh / 2;
+    return [
+      { x: leftX, y: topY, rot: -Math.PI / 2 },
+      { x: leftX, y: botY, rot: -Math.PI / 2 },
+      { x: rightX, y: topY, rot: Math.PI / 2 },
+      { x: rightX, y: botY, rot: Math.PI / 2 },
+    ];
   }
 
   private paintBoard(
