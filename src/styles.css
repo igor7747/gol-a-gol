@@ -125,6 +125,29 @@
   color: var(--color-fg);
 }
 
+.brand-logo {
+  width: 5.6rem;
+  height: 5.6rem;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.28);
+  align-self: flex-start;
+}
+
+.brand-logo-sm {
+  width: 4.4rem;
+  height: 4.4rem;
+  align-self: center;
+}
+
+.loader-logo {
+  width: 5.2rem;
+  height: 5.2rem;
+  align-self: center;
+  animation: loader-bounce 0.9s ease-in-out infinite;
+}
+
 .menu-lead {
   margin: 0;
   color: var(--color-muted);
