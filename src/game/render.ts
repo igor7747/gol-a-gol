@@ -76,7 +76,8 @@ export class Renderer {
   ) {
     const { w, h } = field;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = THEMES[extras.theme].bg;
+    ctx.fillRect(0, 0, w, h);
 
     ctx.save();
     if (extras.cam) {
@@ -95,8 +96,8 @@ export class Renderer {
     this.drawPads(ctx, extras.pads, time);
     this.drawGoals(ctx, field);
     this.drawScoreboard(ctx, field, extras.score, extras.scorePulse);
-    if (extras.path.length > 1) this.drawShotPath(ctx, extras.path, extras.scorePulse);
-    if (extras.theme === "rain") this.drawRain(ctx, field, time);
+    if (extras.path.length > 1) this.drawShotPath(ctx, extras.path, extras.replay ? 0.35 : extras.scorePulse);
+    if (extras.theme === "rain" && !extras.replay) this.drawRain(ctx, field, time);
     this.drawParticles(ctx, particles, "dust");
     this.drawParticles(ctx, particles, "boost");
     this.drawTrail(ctx, extras.trail, ball);

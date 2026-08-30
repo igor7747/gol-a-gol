@@ -606,7 +606,12 @@ export class Engine {
 
     this.updatePointerVelocities(dt);
 
-    if (this.hitstop > 0) {
+    if (this.phase === "replay") {
+      this.hitstop = 0;
+      this.trauma = 0;
+    }
+
+    if (this.hitstop > 0 && this.phase !== "replay") {
       this.hitstop -= dt;
       this.draw(1);
       this.raf = requestAnimationFrame(this.loop);
@@ -628,14 +633,13 @@ export class Engine {
 
     if (this.phase === "replay") {
       this.replayClock += dt;
-      const play = 1.2;
-      const hold = 0.4;
-      if (this.replayClock >= play + hold) {
+      const play = 1.35;
+      const back = 0.5;
+      if (this.replayClock >= play + back) {
         this.finishReplay();
       } else if (this.replayClock <= play) {
         const u = this.replayClock / play;
-        const eased = u ** 1.55;
-        this.replayAt = eased * Math.max(1, this.replay.length - 1);
+        this.replayAt = u * Math.max(1, this.replay.length - 1);
       } else {
         this.replayAt = Math.max(0, this.replay.length - 1);
       }
@@ -651,19 +655,25 @@ export class Engine {
       if (this.clock <= 0) this.onClockEnd();
     }
 
-    this.acc += dt;
-    const cap = STEP * 8;
-    if (this.acc > cap) this.acc = cap;
-    while (this.acc >= STEP) {
-      this.step(STEP);
-      this.acc -= STEP;
+    if (this.phase !== "replay") {
+      this.acc += dt;
+      const cap = STEP * 8;
+      if (this.acc > cap) this.acc = cap;
+      while (this.acc >= STEP) {
+        this.step(STEP);
+        this.acc -= STEP;
+      }
+    } else {
+      this.acc = 0;
     }
 
     this.trauma = Math.max(0, this.trauma - dt * 1.8);
     this.flash = Math.max(0, this.flash - dt * 2.4);
     this.scorePulse = Math.max(0, this.scorePulse - dt * 1.6);
-    this.updateParticles(dt);
-    if (this.theme === "rain") this.tickRain(dt);
+    if (this.phase !== "replay") {
+      this.updateParticles(dt);
+      if (this.theme === "rain") this.tickRain(dt);
+    }
     this.draw(this.acc / STEP);
     this.raf = requestAnimationFrame(this.loop);
   };
@@ -995,28 +1005,12 @@ export class Engine {
     this.ball.vx *= 0.2;
     this.ball.vy *= 0.2;
     this.audio.goal();
-    this.addTrauma(0.85);
-    this.flash = 0.55;
+    this.trauma = 0;
+    this.flash = 0.12;
     this.scorePulse = 1;
+    this.hitstop = 0;
+    this.particles = [];
     vibrate([30, 40, 80, 40, 120]);
-    const color = scorer === 0 ? GELO : BRASA;
-    for (let i = 0; i < 64; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const s = 80 + Math.random() * 420;
-      this.spawnParticle({
-        x: this.ball.x,
-        y: this.ball.y,
-        vx: Math.cos(a) * s,
-        vy: Math.sin(a) * s,
-        life: 0.7 + Math.random() * 0.5,
-        maxLife: 1,
-        r: 2 + Math.random() * 4,
-        color: Math.random() < 0.5 ? color : PAPER,
-        rot: Math.random() * 6,
-        vrot: (Math.random() - 0.5) * 12,
-        kind: "confetti",
-      });
-    }
     const tied = this.score[0] === this.score[1];
     if (tied) this.audio.crowdDuck();
     else this.audio.crowdCheer(true);
@@ -1056,6 +1050,7 @@ export class Engine {
     this.replayAt = 0;
     this.replayClock = 0;
     const scorer = useGameUi.getState().lastScorer;
+    if (scorer !== null) this.burstGoal(scorer);
     if (this.pendingOver && scorer !== null) {
       this.phase = "over";
       this.audio.win();
@@ -1067,7 +1062,31 @@ export class Engine {
     this.kickoffTimer = setTimeout(() => {
       if (!this.running || this.phase !== "goal") return;
       this.beginKickoff(false);
-    }, 900);
+    }, 420);
+  }
+
+  private burstGoal(scorer: 0 | 1) {
+    const color = scorer === 0 ? GELO : BRASA;
+    const b = this.ball;
+    this.flash = 0.35;
+    this.addTrauma(0.4);
+    for (let i = 0; i < 48; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const s = 80 + Math.random() * 420;
+      this.spawnParticle({
+        x: b.x,
+        y: b.y,
+        vx: Math.cos(a) * s,
+        vy: Math.sin(a) * s,
+        life: 0.55 + Math.random() * 0.4,
+        maxLife: 1,
+        r: 2 + Math.random() * 4,
+        color: Math.random() < 0.5 ? color : PAPER,
+        rot: Math.random() * 6,
+        vrot: (Math.random() - 0.5) * 12,
+        kind: "confetti",
+      });
+    }
   }
 
   private onClockEnd() {
@@ -1345,14 +1364,17 @@ export class Engine {
       ball = pose.ball;
       fingers = pose.fingers;
       path = this.replay.map((s) => ({ x: s.bx, y: s.by }));
-      const u = Math.min(1, this.replayClock / 1.2);
-      const hold = this.replayClock > 1.2;
-      liveZoom = (this.reducedMotion ? 1 : 1.1) + u * 0.18 + (hold ? 0.08 : 0);
-      const follow = 0.38 + u * 0.42;
-      cam = {
-        cx: this.field.w / 2 + (ball.x - this.field.w / 2) * follow,
-        cy: this.field.h / 2 + (ball.y - this.field.h / 2) * follow,
-      };
+      const play = 1.35;
+      const back = 0.5;
+      const wide = 0.8;
+      let z = wide;
+      if (this.replayClock > play) {
+        const t = Math.min(1, (this.replayClock - play) / back);
+        const s = t * t * (3 - 2 * t);
+        z = wide + (1 - wide) * s;
+      }
+      liveZoom = this.reducedMotion ? 1 : z;
+      cam = { cx: this.field.w / 2, cy: this.field.h / 2 };
     }
 
     this.renderer.draw(
@@ -1360,18 +1382,18 @@ export class Engine {
       this.field,
       ball,
       fingers,
-      this.particles,
-      alpha,
+      this.phase === "replay" ? [] : this.particles,
+      this.phase === "replay" ? 1 : alpha,
       sx,
       sy,
       this.time,
       this.phase,
       this.dpr,
       {
-        trail: this.trail,
+        trail: this.phase === "replay" ? [] : this.trail,
         pads: this.field.pads.map((p, i) => ({
           ...p,
-          ready: (this.padCool[i] ?? 0) <= 0,
+          ready: this.phase !== "replay" && (this.padCool[i] ?? 0) <= 0,
         })),
         zoom: liveZoom,
         flash: this.flash,
@@ -1416,8 +1438,8 @@ export class Engine {
         y: f.y + (n.y - f.y) * t,
         px: f.x,
         py: f.y,
-        vx: f.vx + (n.vx - f.vx) * t,
-        vy: f.vy + (n.vy - f.vy) * t,
+        vx: 0,
+        vy: 0,
         r: f.r,
         born: 0,
         bot: f.bot,
